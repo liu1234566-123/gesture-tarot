@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>命运之眼 - 手势交互塔罗</title>
+    <title>命运之轮 - 手势塔罗交互</title>
     
-    <!-- 加载 MediaPipe 核心库 -->
+    <!-- 引入 MediaPipe 手势识别库 -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
@@ -17,15 +17,15 @@
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: var(--dark); overflow: hidden; font-family: "Microsoft YaHei", serif; color: #fff; }
+        body { background: var(--dark); overflow: hidden; font-family: "Microsoft YaHei", serif; color: #fff; width: 100vw; height: 100vh; }
 
-        /* 视频流隐藏 */
+        /* 隐藏原始视频流 */
         .input_video { display: none; }
 
-        /* 背景画布 */
-        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; }
+        /* 粒子背景画布 */
+        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; }
 
-        /* 手势光标 */
+        /* 手势光标反馈 */
         #cursor {
             position: absolute;
             width: 30px; height: 30px;
@@ -34,63 +34,67 @@
             pointer-events: none;
             z-index: 100;
             transform: translate(-50%, -50%);
-            transition: transform 0.1s ease-out;
             opacity: 0;
+            transition: opacity 0.3s;
         }
-        #cursor.fist { transform: translate(-50%, -50%) scale(2); background: radial-gradient(circle, #ff4500 0%, transparent 70%); }
+        #cursor.fist { width: 50px; height: 50px; background: radial-gradient(circle, #ff4500 0%, transparent 70%); }
 
-        /* UI 层 */
+        /* UI 提示层 */
         #ui {
-            position: absolute; top: 5%; width: 100%; text-align: center; z-index: 50;
-            text-shadow: 0 0 10px rgba(0,0,0,1);
+            position: absolute; top: 40px; width: 100%; text-align: center; z-index: 50;
+            pointer-events: none;
         }
-        h1 { font-size: 24px; color: var(--gold); letter-spacing: 5px; margin-bottom: 10px; }
-        #hint { font-size: 16px; opacity: 0.8; }
+        h1 { font-size: 26px; color: var(--gold); letter-spacing: 8px; margin-bottom: 10px; text-shadow: 0 0 10px rgba(218,165,32,0.5); }
+        #hint { font-size: 16px; opacity: 0.7; letter-spacing: 2px; }
 
-        /* 塔罗牌轨道 */
+        /* 塔罗牌展示区 */
         #stage {
             position: absolute; top: 50%; left: 0; width: 100%; height: 400px;
-            transform: translateY(-50%); perspective: 1200px; z-index: 10;
+            transform: translateY(-50%); perspective: 1500px; z-index: 10;
         }
         #track {
-            position: absolute; left: 50%; display: flex; gap: 30px;
+            position: absolute; left: 50%; display: flex; gap: 40px;
             transform-style: preserve-3d; will-change: transform;
         }
 
-        /* 单张卡牌 */
+        /* 塔罗牌单体 */
         .card {
             width: 200px; height: 320px; flex-shrink: 0;
             position: relative; transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
         }
+        /* 选中翻转状态 */
         .card.active {
             transform: rotateY(180deg) scale(1.4) translateZ(100px);
             z-index: 1000;
+            box-shadow: 0 0 40px rgba(218,165,32,0.4);
         }
         .face {
             position: absolute; width: 100%; height: 100%;
-            backface-visibility: hidden; border-radius: 15px;
+            backface-visibility: hidden; border-radius: 12px;
             border: 2px solid var(--gold); display: flex;
             flex-direction: column; align-items: center; justify-content: center;
         }
+        /* 卡背 */
         .back {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
-            background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(218,165,32,0.1) 5px, rgba(218,165,32,0.1) 10px);
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(218,165,32,0.05) 10px, rgba(218,165,32,0.05) 20px);
         }
-        .back::after { content: "✺"; font-size: 60px; color: var(--gold); opacity: 0.5; }
+        .back::after { content: "✧"; font-size: 60px; color: var(--gold); opacity: 0.4; }
         
+        /* 卡面 */
         .front {
-            background: #fdf5e6; color: #2c1e16; transform: rotateY(180deg);
+            background: #fff9f0; color: #2c1e16; transform: rotateY(180deg);
             padding: 20px; text-align: center;
         }
-        .symbol { font-size: 60px; margin-bottom: 20px; }
-        .name { font-weight: bold; font-size: 18px; border-bottom: 1px solid #2c1e16; }
+        .symbol { font-size: 70px; margin-bottom: 15px; }
+        .name { font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 1px solid #2c1e16; padding-bottom: 5px; }
 
-        /* 加载动画 */
+        /* 加载界面 */
         #loader {
             position: fixed; inset: 0; background: var(--dark);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 9999; transition: opacity 0.5s;
+            z-index: 9999; transition: opacity 0.8s;
         }
         .spinner { width: 50px; height: 50px; border: 3px solid var(--gold); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -100,12 +104,12 @@
 
     <div id="loader">
         <div class="spinner"></div>
-        <p style="margin-top:20px; color:var(--gold)">正在感知时空维度 (加载摄像头与模型)...</p>
+        <p style="margin-top:20px; color:var(--gold); letter-spacing: 2px;">开启命运之眼 (正在初始化摄像头)...</p>
     </div>
 
     <div id="ui">
-        <h1>THE EYES OF FATE</h1>
-        <p id="hint">向左挥手：加速滚动 | 握紧拳头：揭晓命运</p>
+        <h1>THE WHEEL OF FATE</h1>
+        <p id="hint">向左挥手：加速滚动 | 握紧拳头：揭晓命运之牌</p>
     </div>
 
     <div id="cursor"></div>
@@ -115,51 +119,51 @@
         <div id="track"></div>
     </div>
 
-    <video class="input_video"></video>
+    <video class="input_video" playsinline></video>
 
     <script>
-        const cardsData = [
-            { n: "愚者", s: "🃏" }, { n: "魔术师", s: "🪄" }, { n: "女祭司", s: "🌙" },
-            { n: "皇后", s: "👑" }, { n: "皇帝", s: "🦅" }, { n: "教皇", s: "⛪" },
-            { n: "恋人", s: "❤️" }, { n: "战车", s: "🐎" }, { n: "力量", s: "🦁" },
-            { n: "隐士", s: "🏮" }, { n: "命运之轮", s: "☸️" }, { n: "正义", s: "⚖️" },
-            { n: "倒吊人", s: "🪢" }, { n: "死亡", s: "💀" }, { n: "节制", s: "🕊️" },
-            { n: "恶魔", s: "🐐" }, { n: "高塔", s: "🌩️" }, { n: "星星", s: "⭐" },
-            { n: "月亮", s: "🌚" }, { n: "太阳", s: "☀️" }, { n: "审判", s: "📯" }, { n: "世界", s: "🌍" }
+        const tarotCards = [
+            { name: "愚者", sym: "🃏" }, { name: "魔术师", sym: "🪄" }, { name: "女祭司", sym: "🌙" },
+            { name: "皇后", sym: "👑" }, { name: "皇帝", sym: "🦅" }, { name: "教皇", sym: "⛪" },
+            { name: "恋人", sym: "❤️" }, { name: "战车", sym: "🐎" }, { name: "力量", sym: "🦁" },
+            { name: "隐士", sym: "🏮" }, { name: "命运之轮", sym: "☸️" }, { name: "正义", sym: "⚖️" },
+            { name: "倒吊人", sym: "🪢" }, { name: "死亡", sym: "💀" }, { name: "节制", sym: "🕊️" },
+            { name: "恶魔", sym: "🐐" }, { name: "高塔", sym: "🌩️" }, { name: "星星", sym: "⭐" },
+            { name: "月亮", sym: "🌚" }, { name: "太阳", sym: "☀️" }, { name: "审判", sym: "📯" }, { name: "世界", sym: "🌍" }
         ];
 
-        // 1. 初始化卡牌
+        // 1. 初始化 DOM 轨道 (三倍重复以实现无限滚动)
         const track = document.getElementById('track');
-        const fullDeck = [...cardsData, ...cardsData, ...cardsData]; // 三倍填充实现循环
-        const cardW = 200, gap = 30;
-        const step = cardW + gap;
+        const displayList = [...tarotCards, ...tarotCards, ...tarotCards];
+        const cardW = 200, gap = 40;
+        const itemStep = cardW + gap;
 
-        fullDeck.forEach(data => {
-            const el = document.createElement('div');
-            el.className = 'card';
-            el.innerHTML = `
+        displayList.forEach((data, i) => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
                 <div class="face back"></div>
                 <div class="face front">
-                    <div class="symbol">${data.s}</div>
-                    <div class="name">${data.n}</div>
+                    <div class="symbol">${data.sym}</div>
+                    <div class="name">${data.name}</div>
                 </div>
             `;
-            track.appendChild(el);
+            track.appendChild(card);
         });
 
-        const cardElements = document.querySelectorAll('.card');
+        const cardEls = document.querySelectorAll('.card');
 
-        // 2. 交互状态
-        let scrollX = -(cardsData.length * step);
-        let velocity = -1.5;
-        let isFast = false;
-        let isFist = false;
-        let snapX = null;
-        let activeCard = null;
-        let handPos = { x: 0, y: 0 };
-        let prevX = 0;
+        // 2. 交互状态变量
+        let scrollX = -(tarotCards.length * itemStep); // 初始偏移
+        let currentVel = -1.5;
+        let isFastMode = false;
+        let fistActive = false;
+        let snapPos = null;
+        let currentSelected = null;
+        let handCoord = { x: 0, y: 0 };
+        let lastHandX = 0;
 
-        // 3. 粒子系统
+        // 3. 背景粒子系统
         const canvas = document.getElementById('bg-canvas');
         const ctx = canvas.getContext('2d');
         let particles = [];
@@ -167,29 +171,29 @@
         function initParticles() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            particles = Array.from({length: 150}, () => ({
+            particles = Array.from({length: 120}, () => ({
                 x: Math.random() * canvas.width,
                 y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 1,
-                vy: (Math.random() - 0.5) * 1,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: (Math.random() - 0.5) * 0.8,
                 size: Math.random() * 2 + 1
             }));
         }
 
         function drawParticles() {
-            ctx.clearRect(0,0,canvas.width, canvas.height);
-            ctx.fillStyle = "rgba(147, 112, 219, 0.6)";
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "rgba(147, 112, 219, 0.5)";
             particles.forEach(p => {
-                let dx = handPos.x - p.x;
-                let dy = handPos.y - p.y;
+                let dx = handCoord.x - p.x;
+                let dy = handCoord.y - p.y;
                 let dist = Math.sqrt(dx*dx + dy*dy);
-                if(dist < 150) {
-                    p.x -= dx / 15;
-                    p.y -= dy / 15;
+                if(dist < 180) {
+                    p.x -= dx / 20;
+                    p.y -= dy / 20;
                 }
                 p.x += p.vx; p.y += p.vy;
-                if(p.x < 0) p.x = canvas.width; if(p.x > canvas.width) p.x = 0;
-                if(p.y < 0) p.y = canvas.height; if(p.y > canvas.height) p.y = 0;
+                if(p.x < 0) p.x = canvas.width; else if(p.x > canvas.width) p.x = 0;
+                if(p.y < 0) p.y = canvas.height; else if(p.y > canvas.height) p.y = 0;
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
                 ctx.fill();
@@ -197,91 +201,98 @@
             requestAnimationFrame(drawParticles);
         }
 
-        // 4. 动画主循环
-        function update() {
-            if (isFist) {
-                if (snapX !== null) {
-                    scrollX += (snapX - scrollX) * 0.1;
+        // 4. 动画循环
+        function mainLoop() {
+            if (fistActive) {
+                // 握拳模式：平滑吸附到选中的卡牌
+                if (snapPos !== null) {
+                    scrollX += (snapPos - scrollX) * 0.12;
                 }
             } else {
-                let targetV = isFast ? -15 : -1.5;
-                velocity += (targetV - velocity) * 0.05;
-                scrollX += velocity;
+                // 滚动模式
+                let targetVel = isFastMode ? -16 : -1.5;
+                currentVel += (targetVel - currentVel) * 0.05;
+                scrollX += currentVel;
 
-                // 循环逻辑
-                const limit = cardsData.length * step;
-                if (scrollX < -limit * 2) scrollX += limit;
-                if (scrollX > -limit) scrollX -= limit;
+                // 无限滚动边界检查
+                const loopDist = tarotCards.length * itemStep;
+                if (scrollX < -loopDist * 2) scrollX += loopDist;
+                if (scrollX > -loopDist) scrollX -= loopDist;
                 
-                if(activeCard) {
-                    activeCard.classList.remove('active');
-                    activeCard = null;
+                // 清除选中
+                if(currentSelected) {
+                    currentSelected.classList.remove('active');
+                    currentSelected = null;
                 }
-                snapX = null;
+                snapPos = null;
             }
 
             track.style.transform = `translateX(${scrollX}px)`;
-            requestAnimationFrame(update);
+            requestAnimationFrame(mainLoop);
         }
 
-        // 5. 手势识别
+        // 5. 手势识别逻辑
         const video = document.querySelector('.input_video');
         const cursor = document.getElementById('cursor');
 
-        function onResults(results) {
+        function onHandResults(results) {
             document.getElementById('loader').style.opacity = 0;
-            setTimeout(()=>document.getElementById('loader').style.display='none', 500);
+            setTimeout(() => document.getElementById('loader').style.display = 'none', 800);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const marks = results.multiHandLandmarks[0];
                 const x = (1 - marks[9].x) * window.innerWidth;
                 const y = marks[9].y * window.innerHeight;
                 
-                handPos.x = x; handPos.y = y;
+                handCoord.x = x; handCoord.y = y;
                 cursor.style.opacity = 1;
                 cursor.style.left = x + 'px';
                 cursor.style.top = y + 'px';
 
-                // 判断握拳 (食指指尖到掌心的距离)
-                const dist = Math.hypot(marks[8].x - marks[5].x, marks[8].y - marks[5].y);
-                const newFist = dist < 0.05;
+                // 握拳检测：判断食指尖(8)和中指尖(12)到掌心(9)的距离
+                const d8 = Math.hypot(marks[8].x - marks[5].x, marks[8].y - marks[5].y);
+                const d12 = Math.hypot(marks[12].x - marks[9].x, marks[12].y - marks[9].y);
+                const isNowFist = (d8 < 0.06 && d12 < 0.06);
 
-                if (newFist && !isFist) {
-                    isFist = true;
-                    isFast = false;
+                if (isNowFist && !fistActive) {
+                    fistActive = true;
+                    isFastMode = false;
                     cursor.classList.add('fist');
-                    // 计算吸附
-                    let center = window.innerWidth / 2;
-                    let closestDist = Infinity;
-                    let closestIdx = 0;
-                    cardElements.forEach((el, i) => {
-                        let elX = scrollX + (i * step) + cardW/2 + center;
-                        let d = Math.abs(elX - center);
-                        if(d < closestDist) { closestDist = d; closestIdx = i; }
+                    
+                    // 计算哪张牌最靠近中心
+                    const viewportCenter = window.innerWidth / 2;
+                    let minD = Infinity;
+                    let bestIdx = 0;
+                    cardEls.forEach((el, i) => {
+                        const cardCenter = scrollX + (i * itemStep) + cardW/2 + viewportCenter;
+                        const d = Math.abs(cardCenter - viewportCenter);
+                        if(d < minD) { minD = d; bestIdx = i; }
                     });
-                    snapX = -(closestIdx * step) - cardW/2;
-                    activeCard = cardElements[closestIdx];
-                    activeCard.classList.add('active');
-                } else if (!newFist && isFist) {
-                    isFist = false;
+                    
+                    snapPos = -(bestIdx * itemStep) - cardW/2;
+                    currentSelected = cardEls[bestIdx];
+                    currentSelected.classList.add('active');
+                } else if (!isNowFist && fistActive) {
+                    fistActive = false;
                     cursor.classList.remove('fist');
                 }
 
-                // 滑动判断
-                if (!isFist) {
-                    let dx = x - prevX;
-                    if (dx < -15) isFast = true;
-                    if (dx > 15) isFast = false;
+                // 快速划动检测
+                if (!fistActive) {
+                    const deltaX = x - lastHandX;
+                    if (deltaX < -18) isFastMode = true; // 向左快划
+                    if (deltaX > 18) isFastMode = false; // 向右快划取消
                 }
-                prevX = x;
+                lastHandX = x;
             } else {
                 cursor.style.opacity = 0;
             }
         }
 
+        // 初始化 MediaPipe
         const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        hands.onResults(onResults);
+        hands.onResults(onHandResults);
 
         const camera = new Camera(video, {
             onFrame: async () => await hands.send({image: video}),
@@ -291,9 +302,14 @@
         window.onload = () => {
             initParticles();
             drawParticles();
-            update();
+            mainLoop();
             camera.start();
         };
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
     </script>
 </body>
 </html>
