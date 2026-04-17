@@ -1,315 +1,310 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>命运之轮 - 手势塔罗交互</title>
-    
-    <!-- 引入 MediaPipe 手势识别库 -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+import React, { useState, useRef, useEffect } from 'react';
+import { Camera, RefreshCw, ShoppingBag, User, Check, Loader2, Sparkles } from 'lucide-react';
 
-    <style>
-        :root {
-            --gold: #daa520;
-            --purple: #4b0082;
-            --dark: #050505;
-        }
+const API_KEY = ""; // 运行时由环境提供
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: var(--dark); overflow: hidden; font-family: "Microsoft YaHei", serif; color: #fff; width: 100vw; height: 100vh; }
+// 模拟店内服装数据
+const SHOP_ITEMS = [
+  { id: 1, name: "简约白T恤", category: "上衣", prompt: "a clean white premium cotton t-shirt, modern fit" },
+  { id: 2, name: "深蓝商务西装", category: "外套", prompt: "a sharp navy blue professional business suit jacket" },
+  { id: 3, name: "复古夏威夷衬衫", category: "上衣", prompt: "a vintage hawaiian shirt with floral patterns" },
+  { id: 4, name: "黑色连帽卫衣", category: "上衣", prompt: "a comfortable black oversized hoodie" },
+  { id: 5, name: "红色波点连衣裙", category: "全套", prompt: "a stylish red polka dot summer dress" },
+];
 
-        /* 隐藏原始视频流 */
-        .input_video { display: none; }
+export default function App() {
+  const [stream, setStream] = useState(null);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [resultImage, setResultImage] = useState(null);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('camera'); // 'camera', 'shop', 'result'
 
-        /* 粒子背景画布 */
-        #bg-canvas { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; }
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
-        /* 手势光标反馈 */
-        #cursor {
-            position: absolute;
-            width: 30px; height: 30px;
-            background: radial-gradient(circle, var(--gold) 0%, transparent 70%);
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 100;
-            transform: translate(-50%, -50%);
-            opacity: 0;
-            transition: opacity 0.3s;
+  // 初始化摄像头
+  useEffect(() => {
+    async function setupCamera() {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
         }
-        #cursor.fist { width: 50px; height: 50px; background: radial-gradient(circle, #ff4500 0%, transparent 70%); }
+      } catch (err) {
+        setError("无法访问摄像头，请确保已授权。");
+      }
+    }
+    if (activeTab === 'camera' && !capturedImage) {
+      setupCamera();
+    }
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [activeTab, capturedImage]);
 
-        /* UI 提示层 */
-        #ui {
-            position: absolute; top: 40px; width: 100%; text-align: center; z-index: 50;
-            pointer-events: none;
-        }
-        h1 { font-size: 26px; color: var(--gold); letter-spacing: 8px; margin-bottom: 10px; text-shadow: 0 0 10px rgba(218,165,32,0.5); }
-        #hint { font-size: 16px; opacity: 0.7; letter-spacing: 2px; }
+  // 拍照
+  const capturePhoto = () => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (canvas && video) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/png');
+      setCapturedImage(dataUrl);
+      setActiveTab('shop');
+    }
+  };
 
-        /* 塔罗牌展示区 */
-        #stage {
-            position: absolute; top: 50%; left: 0; width: 100%; height: 400px;
-            transform: translateY(-50%); perspective: 1500px; z-index: 10;
-        }
-        #track {
-            position: absolute; left: 50%; display: flex; gap: 40px;
-            transform-style: preserve-3d; will-change: transform;
-        }
+  // 调用 AI 进行换装
+  const generateFitting = async () => {
+    if (!capturedImage || !selectedItem) return;
 
-        /* 塔罗牌单体 */
-        .card {
-            width: 200px; height: 320px; flex-shrink: 0;
-            position: relative; transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-        /* 选中翻转状态 */
-        .card.active {
-            transform: rotateY(180deg) scale(1.4) translateZ(100px);
-            z-index: 1000;
-            box-shadow: 0 0 40px rgba(218,165,32,0.4);
-        }
-        .face {
-            position: absolute; width: 100%; height: 100%;
-            backface-visibility: hidden; border-radius: 12px;
-            border: 2px solid var(--gold); display: flex;
-            flex-direction: column; align-items: center; justify-content: center;
-        }
-        /* 卡背 */
-        .back {
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
-            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(218,165,32,0.05) 10px, rgba(218,165,32,0.05) 20px);
-        }
-        .back::after { content: "✧"; font-size: 60px; color: var(--gold); opacity: 0.4; }
+    setIsGenerating(true);
+    setError(null);
+    setActiveTab('result');
+
+    try {
+      // 1. 准备 Base64 数据 (去掉前缀)
+      const base64Data = capturedImage.split(',')[1];
+
+      // 2. 调用 Gemini 2.5 Flash Image Preview 进行图像编辑 (换装)
+      // 根据指令，使用 gemini-2.5-flash-image-preview 进行 Image-to-Image 任务
+      const prompt = `Please dress the person in this image with this specific item: ${selectedItem.name}. 
+      The style should be: ${selectedItem.prompt}. 
+      Maintain the person's body shape, pose, and background as much as possible, 
+      just realistically replace their current clothing with the new one.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: "image/png", data: base64Data } }
+            ]
+          }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE']
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('AI 生成失败，请重试。');
+
+      const result = await response.json();
+      const generatedBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+      if (generatedBase64) {
+        setResultImage(`data:image/png;base64,${generatedBase64}`);
+      } else {
+        throw new Error('未能提取到生成的图像。');
+      }
+    } catch (err) {
+      setError(err.message || "发生未知错误");
+      setActiveTab('shop');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const reset = () => {
+    setCapturedImage(null);
+    setSelectedItem(null);
+    setResultImage(null);
+    setActiveTab('camera');
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-10">
+        <div className="flex items-center gap-2">
+          <div className="bg-indigo-600 p-2 rounded-lg text-white">
+            <ShoppingBag size={20} />
+          </div>
+          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
+            AI 虚幻试衣间
+          </h1>
+        </div>
+        <button 
+          onClick={reset}
+          className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+          title="重新开始"
+        >
+          <RefreshCw size={20} className="text-slate-500" />
+        </button>
+      </header>
+
+      <main className="flex-1 max-w-4xl mx-auto w-full p-4 md:p-6 flex flex-col gap-6">
         
-        /* 卡面 */
-        .front {
-            background: #fff9f0; color: #2c1e16; transform: rotateY(180deg);
-            padding: 20px; text-align: center;
-        }
-        .symbol { font-size: 70px; margin-bottom: 15px; }
-        .name { font-weight: bold; font-size: 20px; text-transform: uppercase; border-bottom: 1px solid #2c1e16; padding-bottom: 5px; }
+        {/* Step Tabs */}
+        <div className="flex bg-slate-200 p-1 rounded-xl">
+          <button 
+            onClick={() => setActiveTab('camera')}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'camera' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600'}`}
+          >
+            <Camera size={16} /> 1. 拍摄身材
+          </button>
+          <button 
+            onClick={() => capturedImage && setActiveTab('shop')}
+            disabled={!capturedImage}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'shop' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600 disabled:opacity-50'}`}
+          >
+            <ShoppingBag size={16} /> 2. 选择衣服
+          </button>
+          <button 
+            disabled={!resultImage && !isGenerating}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === 'result' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600 disabled:opacity-50'}`}
+          >
+            <Sparkles size={16} /> 3. 试衣结果
+          </button>
+        </div>
 
-        /* 加载界面 */
-        #loader {
-            position: fixed; inset: 0; background: var(--dark);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 9999; transition: opacity 0.8s;
-        }
-        .spinner { width: 50px; height: 50px; border: 3px solid var(--gold); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
-</head>
-<body>
-
-    <div id="loader">
-        <div class="spinner"></div>
-        <p style="margin-top:20px; color:var(--gold); letter-spacing: 2px;">开启命运之眼 (正在初始化摄像头)...</p>
-    </div>
-
-    <div id="ui">
-        <h1>THE WHEEL OF FATE</h1>
-        <p id="hint">向左挥手：加速滚动 | 握紧拳头：揭晓命运之牌</p>
-    </div>
-
-    <div id="cursor"></div>
-    <canvas id="bg-canvas"></canvas>
-
-    <div id="stage">
-        <div id="track"></div>
-    </div>
-
-    <video class="input_video" playsinline></video>
-
-    <script>
-        const tarotCards = [
-            { name: "愚者", sym: "🃏" }, { name: "魔术师", sym: "🪄" }, { name: "女祭司", sym: "🌙" },
-            { name: "皇后", sym: "👑" }, { name: "皇帝", sym: "🦅" }, { name: "教皇", sym: "⛪" },
-            { name: "恋人", sym: "❤️" }, { name: "战车", sym: "🐎" }, { name: "力量", sym: "🦁" },
-            { name: "隐士", sym: "🏮" }, { name: "命运之轮", sym: "☸️" }, { name: "正义", sym: "⚖️" },
-            { name: "倒吊人", sym: "🪢" }, { name: "死亡", sym: "💀" }, { name: "节制", sym: "🕊️" },
-            { name: "恶魔", sym: "🐐" }, { name: "高塔", sym: "🌩️" }, { name: "星星", sym: "⭐" },
-            { name: "月亮", sym: "🌚" }, { name: "太阳", sym: "☀️" }, { name: "审判", sym: "📯" }, { name: "世界", sym: "🌍" }
-        ];
-
-        // 1. 初始化 DOM 轨道 (三倍重复以实现无限滚动)
-        const track = document.getElementById('track');
-        const displayList = [...tarotCards, ...tarotCards, ...tarotCards];
-        const cardW = 200, gap = 40;
-        const itemStep = cardW + gap;
-
-        displayList.forEach((data, i) => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.innerHTML = `
-                <div class="face back"></div>
-                <div class="face front">
-                    <div class="symbol">${data.sym}</div>
-                    <div class="name">${data.name}</div>
+        {/* Content Area */}
+        <div className="bg-white rounded-3xl shadow-xl overflow-hidden min-h-[500px] border border-slate-100 relative">
+          
+          {/* Tab 1: Camera */}
+          {activeTab === 'camera' && (
+            <div className="h-full flex flex-col items-center justify-center p-6 gap-6">
+              {capturedImage ? (
+                <div className="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden border-4 border-indigo-100">
+                  <img src={capturedImage} alt="Captured Body" className="w-full h-full object-cover" />
+                  <button 
+                    onClick={() => setCapturedImage(null)}
+                    className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-3 rounded-full shadow-lg hover:scale-110 transition-transform"
+                  >
+                    <RefreshCw size={20} className="text-indigo-600" />
+                  </button>
                 </div>
-            `;
-            track.appendChild(card);
-        });
+              ) : (
+                <div className="relative w-full max-w-md aspect-[3/4] bg-black rounded-2xl overflow-hidden shadow-2xl">
+                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]" />
+                  <div className="absolute inset-0 border-[20px] border-white/10 pointer-events-none rounded-2xl"></div>
+                  <button 
+                    onClick={capturePhoto}
+                    className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-slate-300 shadow-xl flex items-center justify-center active:scale-95 transition-transform"
+                  >
+                    <div className="w-12 h-12 bg-white border-2 border-slate-800 rounded-full"></div>
+                  </button>
+                </div>
+              )}
+              <div className="text-center space-y-2">
+                <p className="font-semibold text-lg text-slate-800">第一步：拍摄一张全身或半身照</p>
+                <p className="text-sm text-slate-500 max-w-xs">请确保光线充足，露出你的身材轮廓，以便 AI 更好地为你匹配衣服。</p>
+              </div>
+            </div>
+          )}
 
-        const cardEls = document.querySelectorAll('.card');
+          {/* Tab 2: Shop */}
+          {activeTab === 'shop' && (
+            <div className="p-6 h-full flex flex-col gap-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <ShoppingBag className="text-indigo-600" size={24} /> 选购你的单品
+                </h2>
+                <span className="text-sm bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-medium">
+                  5 件可选
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 flex-1">
+                {SHOP_ITEMS.map((item) => (
+                  <div 
+                    key={item.id}
+                    onClick={() => setSelectedItem(item)}
+                    className={`group cursor-pointer rounded-2xl border-2 p-4 transition-all relative ${selectedItem?.id === item.id ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'}`}
+                  >
+                    <div className="aspect-square bg-slate-100 rounded-xl mb-3 flex items-center justify-center text-slate-400 group-hover:scale-105 transition-transform">
+                      {/* Placeholder for clothes images */}
+                      <ShoppingBag size={48} strokeWidth={1} />
+                    </div>
+                    <p className="font-bold text-slate-800">{item.name}</p>
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mt-1">{item.category}</p>
+                    {selectedItem?.id === item.id && (
+                      <div className="absolute top-3 right-3 bg-indigo-600 text-white p-1 rounded-full shadow-md">
+                        <Check size={14} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
 
-        // 2. 交互状态变量
-        let scrollX = -(tarotCards.length * itemStep); // 初始偏移
-        let currentVel = -1.5;
-        let isFastMode = false;
-        let fistActive = false;
-        let snapPos = null;
-        let currentSelected = null;
-        let handCoord = { x: 0, y: 0 };
-        let lastHandX = 0;
+              <button 
+                onClick={generateFitting}
+                disabled={!selectedItem}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-300 transition-all flex items-center justify-center gap-3"
+              >
+                <Sparkles size={22} /> 立即虚拟试穿
+              </button>
+            </div>
+          )}
 
-        // 3. 背景粒子系统
-        const canvas = document.getElementById('bg-canvas');
-        const ctx = canvas.getContext('2d');
-        let particles = [];
+          {/* Tab 3: Result */}
+          {activeTab === 'result' && (
+            <div className="h-full flex flex-col items-center justify-center p-6 gap-6">
+              {isGenerating ? (
+                <div className="flex flex-col items-center gap-6 text-center">
+                  <div className="relative">
+                    <div className="w-24 h-24 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                    <Sparkles className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-indigo-600 animate-pulse" size={32} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-800">AI 裁缝正在为你量身定做...</h3>
+                    <p className="text-slate-500 mt-2">我们正在将 {selectedItem?.name} 完美贴合你的身材</p>
+                  </div>
+                </div>
+              ) : resultImage ? (
+                <div className="flex flex-col items-center gap-6 w-full animate-in fade-in zoom-in duration-500">
+                  <div className="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+                    <img src={resultImage} alt="Virtual Try-on Result" className="w-full h-full object-cover" />
+                    <div className="absolute top-4 left-4 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                      <Sparkles size={12} /> AI 生成效果图
+                    </div>
+                  </div>
+                  <div className="flex gap-4 w-full max-w-md">
+                    <button 
+                      onClick={() => setActiveTab('shop')}
+                      className="flex-1 py-3 bg-slate-100 text-slate-800 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
+                    >
+                      换一件试试
+                    </button>
+                    <button 
+                      className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-colors"
+                    >
+                      加入购物车
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-slate-500">
+                  {error ? (
+                    <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100">
+                      <p className="font-bold">哎呀，出错了</p>
+                      <p className="text-sm mt-1">{error}</p>
+                      <button onClick={generateFitting} className="mt-3 text-sm underline font-bold">重试</button>
+                    </div>
+                  ) : "准备开始试衣"}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
 
-        function initParticles() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            particles = Array.from({length: 120}, () => ({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                vx: (Math.random() - 0.5) * 0.8,
-                vy: (Math.random() - 0.5) * 0.8,
-                size: Math.random() * 2 + 1
-            }));
-        }
+      <canvas ref={canvasRef} className="hidden" />
 
-        function drawParticles() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = "rgba(147, 112, 219, 0.5)";
-            particles.forEach(p => {
-                let dx = handCoord.x - p.x;
-                let dy = handCoord.y - p.y;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-                if(dist < 180) {
-                    p.x -= dx / 20;
-                    p.y -= dy / 20;
-                }
-                p.x += p.vx; p.y += p.vy;
-                if(p.x < 0) p.x = canvas.width; else if(p.x > canvas.width) p.x = 0;
-                if(p.y < 0) p.y = canvas.height; else if(p.y > canvas.height) p.y = 0;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
-                ctx.fill();
-            });
-            requestAnimationFrame(drawParticles);
-        }
-
-        // 4. 动画循环
-        function mainLoop() {
-            if (fistActive) {
-                // 握拳模式：平滑吸附到选中的卡牌
-                if (snapPos !== null) {
-                    scrollX += (snapPos - scrollX) * 0.12;
-                }
-            } else {
-                // 滚动模式
-                let targetVel = isFastMode ? -16 : -1.5;
-                currentVel += (targetVel - currentVel) * 0.05;
-                scrollX += currentVel;
-
-                // 无限滚动边界检查
-                const loopDist = tarotCards.length * itemStep;
-                if (scrollX < -loopDist * 2) scrollX += loopDist;
-                if (scrollX > -loopDist) scrollX -= loopDist;
-                
-                // 清除选中
-                if(currentSelected) {
-                    currentSelected.classList.remove('active');
-                    currentSelected = null;
-                }
-                snapPos = null;
-            }
-
-            track.style.transform = `translateX(${scrollX}px)`;
-            requestAnimationFrame(mainLoop);
-        }
-
-        // 5. 手势识别逻辑
-        const video = document.querySelector('.input_video');
-        const cursor = document.getElementById('cursor');
-
-        function onHandResults(results) {
-            document.getElementById('loader').style.opacity = 0;
-            setTimeout(() => document.getElementById('loader').style.display = 'none', 800);
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const marks = results.multiHandLandmarks[0];
-                const x = (1 - marks[9].x) * window.innerWidth;
-                const y = marks[9].y * window.innerHeight;
-                
-                handCoord.x = x; handCoord.y = y;
-                cursor.style.opacity = 1;
-                cursor.style.left = x + 'px';
-                cursor.style.top = y + 'px';
-
-                // 握拳检测：判断食指尖(8)和中指尖(12)到掌心(9)的距离
-                const d8 = Math.hypot(marks[8].x - marks[5].x, marks[8].y - marks[5].y);
-                const d12 = Math.hypot(marks[12].x - marks[9].x, marks[12].y - marks[9].y);
-                const isNowFist = (d8 < 0.06 && d12 < 0.06);
-
-                if (isNowFist && !fistActive) {
-                    fistActive = true;
-                    isFastMode = false;
-                    cursor.classList.add('fist');
-                    
-                    // 计算哪张牌最靠近中心
-                    const viewportCenter = window.innerWidth / 2;
-                    let minD = Infinity;
-                    let bestIdx = 0;
-                    cardEls.forEach((el, i) => {
-                        const cardCenter = scrollX + (i * itemStep) + cardW/2 + viewportCenter;
-                        const d = Math.abs(cardCenter - viewportCenter);
-                        if(d < minD) { minD = d; bestIdx = i; }
-                    });
-                    
-                    snapPos = -(bestIdx * itemStep) - cardW/2;
-                    currentSelected = cardEls[bestIdx];
-                    currentSelected.classList.add('active');
-                } else if (!isNowFist && fistActive) {
-                    fistActive = false;
-                    cursor.classList.remove('fist');
-                }
-
-                // 快速划动检测
-                if (!fistActive) {
-                    const deltaX = x - lastHandX;
-                    if (deltaX < -18) isFastMode = true; // 向左快划
-                    if (deltaX > 18) isFastMode = false; // 向右快划取消
-                }
-                lastHandX = x;
-            } else {
-                cursor.style.opacity = 0;
-            }
-        }
-
-        // 初始化 MediaPipe
-        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-        hands.onResults(onHandResults);
-
-        const camera = new Camera(video, {
-            onFrame: async () => await hands.send({image: video}),
-            width: 1280, height: 720
-        });
-
-        window.onload = () => {
-            initParticles();
-            drawParticles();
-            mainLoop();
-            camera.start();
-        };
-
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-    </script>
-</body>
-</html>
+      {/* Footer / Status */}
+      <footer className="p-6 text-center text-slate-400 text-xs">
+        &copy; 2024 AI Fashion Studio &middot; Powered by Gemini 2.5 Flash
+      </footer>
+    </div>
+  );
+}
