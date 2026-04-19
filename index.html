@@ -3,270 +3,394 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 虚拟试衣间 - 纯前端版</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <title>星语占卜 - 命运之指引</title>
+    <!-- 基础依赖 -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MediaPipe 交互库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <!-- Lucide 图标库 (UMD) -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-        @keyframes pulse-soft {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .animate-pulse-soft {
-            animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');
+        body { background-color: #030308; margin: 0; overflow: hidden; }
+        .font-chinese { font-family: 'Ma Shan Zheng', cursive; }
+        /* 针对单文件版的 Lucide 图标适配 */
+        .lucide { display: inline-block; vertical-align: middle; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useRef, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        const API_KEY = ""; // 运行时由环境自动填充
-
-        const SHOP_ITEMS = [
-            { id: 1, name: "简约白T恤", category: "上衣", prompt: "a clean white premium cotton t-shirt, modern fit" },
-            { id: 2, name: "深蓝商务西装", category: "外套", prompt: "a sharp navy blue professional business suit jacket" },
-            { id: 3, name: "复古夏威夷衬衫", category: "上衣", prompt: "a vintage hawaiian shirt with floral patterns" },
-            { id: 4, name: "黑色连帽卫衣", category: "上衣", prompt: "a comfortable black oversized hoodie" },
-            { id: 5, name: "红色波点连衣裙", category: "全套", prompt: "a stylish red polka dot summer dress" },
+        // --- 塔罗数据 ---
+        const TAROT_DATA = [
+            { name: "愚者", emoji: "🃏", desc: "开启旅程的勇气，不问终点的纯粹。", detail: "现在是放下恐惧、开始新事物的最佳时机。保持赤子之心，不要被世俗的规则束缚。风险中蕴含着巨大的机遇。" },
+            { name: "魔术师", emoji: "🧙", desc: "万事俱备，你拥有改变现实的创造力。", detail: "你手中已经握有了解决问题的所有工具。现在需要的是专注和行动。将你的想法转化为现实，你拥有化腐朽为神奇的力量。" },
+            { name: "女教皇", emoji: "🌙", desc: "智慧源于静谧，听从内心的直觉。", detail: "答案不在外部，而是在你的内心深处。保持静默，观察事物的本质。此时不宜采取激进的行动，而应等待直觉的指引。" },
+            { name: "皇后", emoji: "🌿", desc: "丰盛的果实正在孕育，母性的慈悲。", detail: "这是一个充满爱与创造力的时期。你的计划正在稳步成长，给予它耐心和温柔。享受生命的美好，富足感会自然随之而来。" },
+            { name: "皇帝", emoji: "👑", desc: "秩序与权威，理性的决策。", detail: "你需要建立结构和纪律。通过逻辑和权威来掌控局面。现在需要坚定的立场和明确的目标，而非感性的犹豫。" },
+            { name: "力量", emoji: "🦁", desc: "温柔的克制，降伏内心的野兽。", detail: "真正的力量源于内心的韧性而非蛮力。用耐心和宽容去化解冲突。你比自己想象的要坚强，能够驯服任何困难。" },
+            { name: "高塔", emoji: "⚡", desc: "旧秩序的崩塌，重塑的契机。", detail: "突如其来的巨变虽然痛苦，但却是必要的。它摧毁了虚假的基础，为你腾出了重建的空间。拥抱变化，因为它能带来真相。" },
+            { name: "太阳", emoji: "☀️", desc: "纯粹的光明与喜悦，成功的坦途。", detail: "前方是一片坦途。你会获得清晰的视野和成功的喜悦。保持乐观积极的态度，所有的阴霾都将被驱散。" },
+            { name: "星辰", emoji: "✨", desc: "黑暗中的希望，灵感的涌现。", detail: "在最黑暗的时刻，希望从未熄灭。这是一个疗愈和寻找灵感的时期。相信宇宙的安排，你的愿望正在被听见。" },
+            { name: "审判", emoji: "🔔", desc: "觉醒的时刻，对过去的清算。", detail: "这是审视过去、做出重要决定的时刻。你正经历一次精神上的觉醒。放下过往的包袱，迎接重生的机会。" }
         ];
 
+        const TOTAL_CARDS = 40;
+        const cards = Array.from({ length: TOTAL_CARDS }, (_, i) => ({
+            ...TAROT_DATA[i % TAROT_DATA.length],
+            id: i
+        }));
+
+        // 占卜应用主组件
         function App() {
-            const [stream, setStream] = useState(null);
-            const [capturedImage, setCapturedImage] = useState(null);
-            const [selectedItem, setSelectedItem] = useState(null);
-            const [isGenerating, setIsGenerating] = useState(false);
-            const [resultImage, setResultImage] = useState(null);
-            const [error, setError] = useState(null);
-            const [activeTab, setActiveTab] = useState('camera');
-
+            const [step, setStep] = useState('input'); // input, drawing, reveal, analysis
+            const [question, setQuestion] = useState("");
+            const [offset, setOffset] = useState(0);
+            const [grabbedCard, setGrabbedCard] = useState(null);
+            const [drawnCards, setDrawnCards] = useState([]);
+            const [isDissipating, setIsDissipating] = useState(false); 
+            const [isCameraReady, setIsCameraReady] = useState(false);
+            const [status, setStatus] = useState("正在校准星图...");
+            
+            const offsetRef = useRef(0);
+            const baseSpeed = 1.6;
+            const speedRef = useRef(baseSpeed);
+            const cursorRef = useRef({ x: 0, y: 0, grabbing: false });
             const videoRef = useRef(null);
-            const canvasRef = useRef(null);
+            const previewVideoRef = useRef(null);
+            const requestRef = useRef();
+            const lastHandX = useRef(null);
+            const isGrabbingRef = useRef(false);
 
-            useEffect(() => {
-                lucide.createIcons();
-            }, [activeTab, capturedImage, resultImage, isGenerating]);
+            const cardWidth = 200; 
+            const cardHeight = 340;
+            const gap = 60; 
+            const totalWidth = TOTAL_CARDS * (cardWidth + gap);
 
-            useEffect(() => {
-                async function setupCamera() {
-                    try {
-                        const mediaStream = await navigator.mediaDevices.getUserMedia({
-                            video: { facingMode: 'user' }
-                        });
-                        setStream(mediaStream);
-                        if (videoRef.current) {
-                            videoRef.current.srcObject = mediaStream;
+            // 手势抓取逻辑
+            const handleGrab = () => {
+                if (isGrabbingRef.current || drawnCards.length >= 3 || step !== 'drawing') return;
+                const centerOffset = -offsetRef.current + window.innerWidth / 2;
+                const index = Math.round(centerOffset / (cardWidth + gap)) % TOTAL_CARDS;
+                const selected = cards[index];
+
+                isGrabbingRef.current = true;
+                setGrabbedCard(selected);
+                setIsDissipating(false);
+                speedRef.current = 0;
+                setStatus("星能锁定中...");
+            };
+
+            const handleRelease = () => {
+                if (!isGrabbingRef.current) return;
+                setIsDissipating(true);
+                setStatus("命运已留痕...");
+
+                setTimeout(() => {
+                    const currentCard = grabbedCard;
+                    setDrawnCards(prev => {
+                        const next = [...prev, currentCard];
+                        if (next.length >= 3) {
+                            setTimeout(() => setStep('reveal'), 800);
                         }
-                    } catch (err) {
-                        setError("无法访问摄像头，请确保已授权。");
-                    }
-                }
-                if (activeTab === 'camera' && !capturedImage) {
-                    setupCamera();
-                }
-                return () => {
-                    if (stream) {
-                        stream.getTracks().forEach(track => track.stop());
+                        return next;
+                    });
+                    setGrabbedCard(null);
+                    setIsDissipating(false);
+                    isGrabbingRef.current = false;
+                    speedRef.current = baseSpeed * 1.5;
+                }, 600);
+            };
+
+            // 初始化 MediaPipe
+            useEffect(() => {
+                let hands = null;
+                let camera = null;
+                const videoElement = videoRef.current;
+
+                const onResults = (results) => {
+                    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                        const hand = results.multiHandLandmarks[0];
+                        const x = (1 - hand[0].x) * window.innerWidth;
+                        const y = hand[0].y * window.innerHeight;
+                        
+                        cursorRef.current.x = x;
+                        cursorRef.current.y = y;
+
+                        const isFist = [8, 12, 16, 20].every(i => hand[i].y > hand[i - 2].y);
+                        const wasGrabbing = cursorRef.current.grabbing;
+                        cursorRef.current.grabbing = isFist;
+
+                        if (isFist && !wasGrabbing) handleGrab();
+                        else if (!isFist && wasGrabbing) handleRelease();
+                    } else {
+                        if (cursorRef.current.grabbing) handleRelease();
+                        cursorRef.current.grabbing = false;
                     }
                 };
-            }, [activeTab, capturedImage]);
 
-            const capturePhoto = () => {
-                const canvas = canvasRef.current;
-                const video = videoRef.current;
-                if (canvas && video) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0);
-                    const dataUrl = canvas.toDataURL('image/png');
-                    setCapturedImage(dataUrl);
-                    setActiveTab('shop');
-                }
-            };
-
-            const generateFitting = async () => {
-                if (!capturedImage || !selectedItem) return;
-                setIsGenerating(true);
-                setError(null);
-                setActiveTab('result');
-
-                try {
-                    const base64Data = capturedImage.split(',')[1];
-                    const prompt = `Please dress the person in this image with this specific item: ${selectedItem.name}. The style should be: ${selectedItem.prompt}. Maintain the person's body shape, pose, and background as much as possible, just realistically replace their current clothing with the new one.`;
-
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${API_KEY}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [
-                                    { text: prompt },
-                                    { inlineData: { mimeType: "image/png", data: base64Data } }
-                                ]
-                            }],
-                            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-                        })
+                const initAI = async () => {
+                    hands = new window.Hands({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
                     });
+                    hands.setOptions({
+                        maxNumHands: 1,
+                        modelComplexity: 1,
+                        minDetectionConfidence: 0.7,
+                        minTrackingConfidence: 0.7
+                    });
+                    hands.onResults(onResults);
 
-                    if (!response.ok) throw new Error('AI 生成失败，请检查网络或 API 配置。');
+                    camera = new window.Camera(videoElement, {
+                        onFrame: async () => {
+                            await hands.send({ image: videoElement });
+                        },
+                        width: 640, height: 480
+                    });
+                    camera.start().then(() => {
+                        setIsCameraReady(true);
+                        setStatus("感应场已就绪");
+                    });
+                };
 
-                    const result = await response.json();
-                    const generatedBase64 = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                initAI();
+                return () => {
+                    if (camera) camera.stop();
+                    if (hands) hands.close();
+                };
+            }, [step]); // 当步骤改变时重新确认视频源
 
-                    if (generatedBase64) {
-                        setResultImage(`data:image/png;base64,${generatedBase64}`);
-                    } else {
-                        throw new Error('未能提取到生成的图像数据。');
-                    }
-                } catch (err) {
-                    setError(err.message || "发生未知错误");
-                    setActiveTab('shop');
-                } finally {
-                    setIsGenerating(false);
-                }
-            };
-
-            const reset = () => {
-                setCapturedImage(null);
-                setSelectedItem(null);
-                setResultImage(null);
-                setActiveTab('camera');
-            };
+            // 动画循环
+            useEffect(() => {
+                const update = () => {
+                    if (speedRef.current > baseSpeed) speedRef.current *= 0.985;
+                    else if (speedRef.current < baseSpeed && !isGrabbingRef.current) speedRef.current = baseSpeed;
+                    
+                    offsetRef.current -= speedRef.current;
+                    if (Math.abs(offsetRef.current) >= totalWidth) offsetRef.current = 0;
+                    setOffset(offsetRef.current);
+                    requestRef.current = requestAnimationFrame(update);
+                };
+                requestRef.current = requestAnimationFrame(update);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [totalWidth]);
 
             return (
-                <div className="min-h-screen flex flex-col font-sans">
-                    <header className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-10 shadow-sm">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-indigo-600 p-2 rounded-lg text-white">
-                                <i data-lucide="shopping-bag" class="w-5 h-5"></i>
-                            </div>
-                            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-violet-600">
-                                AI 虚拟试衣间
-                            </h1>
-                        </div>
-                        <button onClick={reset} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                            <i data-lucide="refresh-cw" class="w-5 h-5 text-slate-500"></i>
-                        </button>
-                    </header>
+                <div className="relative w-full h-screen bg-[#030308] overflow-hidden text-[#f0e6cc] select-none">
+                    <video ref={videoRef} className="hidden" playsInline />
+                    <HandCursor state={cursorRef} />
+                    
+                    {/* 背景装饰 */}
+                    <div className="absolute inset-0 pointer-events-none z-0">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#0e061a_0%,#030308_100%)] opacity-80" />
+                        <Starfield />
+                    </div>
 
-                    <main className="flex-1 max-w-4xl mx-auto w-full p-4 md:p-6 flex flex-col gap-6">
-                        <div className="flex bg-slate-200 p-1 rounded-xl">
-                            {['camera', 'shop', 'result'].map((tab, idx) => (
-                                <button
-                                    key={tab}
-                                    disabled={tab === 'shop' && !capturedImage || tab === 'result' && !resultImage && !isGenerating}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${activeTab === tab ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-600 disabled:opacity-50'}`}
-                                >
-                                    <span className="hidden sm:inline">{idx + 1}. {tab === 'camera' ? '拍摄身材' : tab === 'shop' ? '选择衣服' : '试衣结果'}</span>
-                                    <span className="sm:hidden uppercase">{tab[0]}</span>
-                                </button>
-                            ))}
+                    {/* 1. 输入问题阶段 */}
+                    {step === 'input' && (
+                        <div className="relative z-50 h-full flex flex-col items-center justify-center p-6 text-center">
+                           <div className="w-24 h-24 mb-6 text-[#ffcc33] opacity-80"><GeometricSymbol /></div>
+                           <h1 className="text-5xl font-chinese tracking-widest mb-4 text-[#ffcc33]">星语占卜</h1>
+                           <p className="text-sm opacity-50 mb-12 tracking-widest italic">“写下你内心的困惑...”</p>
+                           <div className="w-full max-w-lg">
+                              <input 
+                                type="text"
+                                value={question}
+                                onChange={(e) => setQuestion(e.target.value)}
+                                placeholder="例如：我近期的运势如何？"
+                                className="w-full bg-transparent border-b-2 border-[#ffcc33]/30 p-4 text-xl text-center focus:outline-none focus:border-[#ffcc33] transition-all"
+                              />
+                              <button 
+                                onClick={() => setStep('drawing')}
+                                disabled={question.length < 2}
+                                className="mt-12 px-12 py-4 rounded-full border border-[#ffcc33]/40 hover:bg-[#ffcc33] hover:text-black transition-all disabled:opacity-20"
+                              >
+                                注入星能
+                              </button>
+                           </div>
                         </div>
+                    )}
 
-                        <div className="bg-white rounded-3xl shadow-xl overflow-hidden min-h-[500px] border border-slate-100 relative">
-                            {activeTab === 'camera' && (
-                                <div className="h-full flex flex-col items-center justify-center p-6 gap-6">
-                                    {capturedImage ? (
-                                        <div className="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden border-4 border-indigo-100">
-                                            <img src={capturedImage} className="w-full h-full object-cover" />
-                                            <button onClick={() => setCapturedImage(null)} className="absolute bottom-4 right-4 bg-white/90 backdrop-blur p-3 rounded-full shadow-lg">
-                                                <i data-lucide="refresh-cw" class="w-5 h-5 text-indigo-600"></i>
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="relative w-full max-w-md aspect-[3/4] bg-black rounded-2xl overflow-hidden shadow-2xl">
-                                            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]" />
-                                            <button onClick={capturePhoto} className="absolute bottom-8 left-1/2 -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-slate-300 shadow-xl flex items-center justify-center active:scale-95">
-                                                <div className="w-12 h-12 bg-white border-2 border-slate-800 rounded-full"></div>
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="text-center">
-                                        <p className="font-semibold text-lg text-slate-800">第一步：拍摄一张全身或半身照</p>
-                                        <p className="text-sm text-slate-500">请确保光线充足，露出你的身材轮廓。</p>
-                                    </div>
+                    {/* 2. 抽牌阶段 */}
+                    {step === 'drawing' && (
+                        <>
+                            <div className="absolute top-10 w-full text-center z-50">
+                                <h1 className="text-2xl font-chinese tracking-widest text-[#ffcc33]/80 mb-2">问：{question}</h1>
+                                <div className="inline-flex items-center gap-3 bg-black/60 px-6 py-2 rounded-full border border-[#ffcc33]/20">
+                                    <span className="text-[10px] tracking-widest text-[#ffcc33] uppercase">{status}</span>
                                 </div>
-                            )}
+                            </div>
 
-                            {activeTab === 'shop' && (
-                                <div className="p-6 h-full flex flex-col gap-6">
-                                    <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
-                                        <i data-lucide="shopping-bag" class="text-indigo-600"></i> 选购你的单品
-                                    </h2>
-                                    <div className="grid grid-cols-2 gap-4 flex-1 overflow-y-auto pr-2" style={{maxHeight: '400px'}}>
-                                        {SHOP_ITEMS.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                onClick={() => setSelectedItem(item)}
-                                                className={`group cursor-pointer rounded-2xl border-2 p-4 transition-all relative ${selectedItem?.id === item.id ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-100 hover:border-indigo-200 hover:bg-slate-50'}`}
-                                            >
-                                                <div className="aspect-square bg-slate-100 rounded-xl mb-3 flex items-center justify-center text-slate-400 group-hover:scale-105 transition-transform">
-                                                    <i data-lucide="shirt" class="w-10 h-10 stroke-1"></i>
-                                                </div>
-                                                <p className="font-bold text-slate-800 text-sm">{item.name}</p>
-                                                <p className="text-[10px] text-slate-500 uppercase mt-1 tracking-tighter">{item.category}</p>
-                                                {selectedItem?.id === item.id && (
-                                                    <div className="absolute top-3 right-3 bg-indigo-600 text-white p-1 rounded-full shadow-md">
-                                                        <i data-lucide="check" class="w-3 h-3"></i>
-                                                    </div>
-                                                )}
+                            <div className="relative w-full h-full flex items-center justify-center z-10" style={{ perspective: '2000px' }}>
+                                {cards.map((card, i) => {
+                                    let xPos = (i * (cardWidth + gap)) + offset;
+                                    if (xPos < -totalWidth / 2) xPos += totalWidth;
+                                    if (xPos > totalWidth * 1.5) xPos -= totalWidth;
+
+                                    const normalizedX = (xPos - window.innerWidth / 2) / (window.innerWidth / 1.2);
+                                    const zDepth = -Math.pow(normalizedX, 2) * 1000;
+                                    const rotationY = normalizedX * -30;
+                                    const opacity = 1 - Math.min(Math.abs(normalizedX) * 1.5, 1);
+                                    const isGrabbed = grabbedCard?.id === card.id;
+
+                                    return (
+                                        <div
+                                            key={card.id}
+                                            className="absolute"
+                                            style={{
+                                                width: cardWidth, height: cardHeight,
+                                                transform: isGrabbed 
+                                                    ? `translate3d(${window.innerWidth/2 - cardWidth/2}px, 0, ${isDissipating ? 800 : 500}px) rotateY(180deg) scale(1.0)`
+                                                    : `translate3d(${xPos}px, 0, ${zDepth}px) rotateY(${rotationY}deg)`,
+                                                opacity: isGrabbed ? (isDissipating ? 0 : 1) : opacity,
+                                                filter: isGrabbed && isDissipating ? 'blur(40px)' : 'none',
+                                                transition: isGrabbed ? 'transform 0.6s ease, opacity 0.5s, filter 0.5s' : 'none',
+                                                zIndex: isGrabbed ? 100 : 10,
+                                                transformStyle: 'preserve-3d'
+                                            }}
+                                        >
+                                            {/* 正面（牌面内容） */}
+                                            <div className="absolute inset-0 bg-white rounded-xl flex flex-col items-center justify-between p-8 text-black" style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}>
+                                                <div className="text-8xl mt-4">{card.emoji}</div>
+                                                <div className="text-2xl font-bold tracking-widest">{card.name}</div>
+                                                <div className="w-12 h-1 bg-gray-100" />
                                             </div>
-                                        ))}
+                                            {/* 背面（几何星纹） */}
+                                            <div className="absolute inset-0 rounded-xl border border-[#ffcc33]/40 bg-[#080815] flex items-center justify-center" style={{ backfaceVisibility: 'hidden' }}>
+                                                <div className="w-32 h-32 opacity-30 text-[#ffcc33]"><GeometricSymbol /></div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-6">
+                                {[0, 1, 2].map(i => (
+                                    <div key={i} className={`w-3 h-3 rounded-full border border-[#ffcc33] ${i < drawnCards.length ? 'bg-[#ffcc33] scale-125 shadow-[0_0_10px_#ffcc33]' : 'opacity-30'}`} />
+                                ))}
+                            </div>
+                        </>
+                    )}
+
+                    {/* 3. 揭晓过渡阶段 */}
+                    {step === 'reveal' && (
+                        <div className="relative z-[200] h-full bg-black/90 backdrop-blur-xl flex flex-col items-center justify-center">
+                            <h2 className="text-4xl font-chinese text-[#ffcc33] mb-12 tracking-widest">命运已具现</h2>
+                            <div className="flex gap-8 mb-16">
+                                {drawnCards.map((c, i) => (
+                                    <div key={i} className="w-24 h-36 border border-[#ffcc33]/20 bg-white/5 rounded-lg flex items-center justify-center text-4xl grayscale opacity-40">
+                                        {c.emoji}
                                     </div>
-                                    <button
-                                        onClick={generateFitting}
-                                        disabled={!selectedItem}
-                                        className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-3 transition-all"
-                                    >
-                                        <i data-lucide="sparkles"></i> 立即虚拟试穿
+                                ))}
+                            </div>
+                            <button onClick={() => setStep('analysis')} className="px-16 py-5 bg-[#ffcc33] text-black rounded-full font-bold tracking-widest hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,204,51,0.3)]">
+                                开启解析
+                            </button>
+                        </div>
+                    )}
+
+                    {/* 4. 最终解析阶段 */}
+                    {step === 'analysis' && (
+                        <div className="relative z-[300] h-full overflow-y-auto bg-[#030308] p-8">
+                            <div className="max-w-3xl mx-auto py-20">
+                                <div className="text-center mb-20">
+                                    <h2 className="text-5xl font-chinese text-[#ffcc33] mb-6">解析报告</h2>
+                                    <p className="text-lg opacity-60 italic">“{question}”</p>
+                                </div>
+                                <div className="space-y-24">
+                                    {drawnCards.map((card, i) => (
+                                        <div key={i} className="flex flex-col md:flex-row gap-10 items-center">
+                                            <div className="w-40 h-64 bg-white rounded-xl flex flex-col items-center justify-between p-6 text-black shrink-0">
+                                                <div className="text-6xl">{card.emoji}</div>
+                                                <div className="font-bold text-lg">{card.name}</div>
+                                            </div>
+                                            <div className="flex-1 text-center md:text-left">
+                                                <div className="text-[#ffcc33] text-xs tracking-widest mb-2 uppercase opacity-50">
+                                                    {i === 0 ? "当下境况" : i === 1 ? "挑战障碍" : "最终指引"}
+                                                </div>
+                                                <h3 className="text-3xl font-bold mb-4">{card.name}</h3>
+                                                <p className="text-[#f0e6cc]/80 leading-relaxed text-lg border-l-2 border-[#ffcc33]/30 pl-6 italic">
+                                                    {card.detail}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-32 text-center pb-20">
+                                    <button onClick={() => window.location.reload()} className="px-10 py-3 border border-[#ffcc33]/30 text-[#ffcc33] rounded-full hover:bg-[#ffcc33] hover:text-black transition-all">
+                                        重塑虚空
                                     </button>
                                 </div>
-                            )}
-
-                            {activeTab === 'result' && (
-                                <div className="h-full flex flex-col items-center justify-center p-6 gap-6">
-                                    {isGenerating ? (
-                                        <div className="flex flex-col items-center gap-6 text-center animate-in fade-in duration-500">
-                                            <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                                            <div>
-                                                <h3 className="text-xl font-bold text-slate-800">AI 裁缝正在制作中...</h3>
-                                                <p className="text-slate-500 mt-2">正在将 {selectedItem?.name} 贴合你的身材</p>
-                                            </div>
-                                        </div>
-                                    ) : resultImage ? (
-                                        <div className="flex flex-col items-center gap-6 w-full animate-in zoom-in duration-500">
-                                            <div className="relative w-full max-w-md aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
-                                                <img src={resultImage} className="w-full h-full object-cover" />
-                                                <div className="absolute top-4 left-4 bg-black/50 backdrop-blur px-3 py-1 rounded-full text-white text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                                                    <i data-lucide="sparkles" class="w-3 h-3"></i> AI 生成效果
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-4 w-full max-w-md">
-                                                <button onClick={() => setActiveTab('shop')} className="flex-1 py-3 bg-slate-100 text-slate-800 rounded-xl font-semibold hover:bg-slate-200">换一件</button>
-                                                <button className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:bg-indigo-700">加入购物车</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center p-8">
-                                            {error && <div className="text-red-500 bg-red-50 p-4 rounded-xl border border-red-100">{error}</div>}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            </div>
                         </div>
-                    </main>
+                    )}
 
-                    <footer className="p-6 text-center text-slate-400 text-[10px]">
-                        &copy; 2024 AI Fashion Studio &middot; 纯前端离线原型
-                    </footer>
-                    <canvas ref={canvasRef} className="hidden" />
+                    {/* 摄像头小窗预览 */}
+                    {step === 'drawing' && (
+                        <div className="absolute bottom-6 right-6 w-32 h-24 border border-white/10 rounded-lg overflow-hidden opacity-40 bg-black">
+                            <video 
+                                autoPlay muted playsInline
+                                ref={(el) => { if(el && videoRef.current) el.srcObject = videoRef.current.captureStream?.() || videoRef.current.srcObject; }}
+                                className="w-full h-full object-cover scale-x-[-1]"
+                            />
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // --- 装饰性子组件 ---
+        function HandCursor({ state }) {
+            const [pos, setPos] = useState({ x: 0, y: 0, grabbing: false });
+            useEffect(() => {
+                let frame;
+                const update = () => { setPos({...state.current}); frame = requestAnimationFrame(update); };
+                frame = requestAnimationFrame(update);
+                return () => cancelAnimationFrame(frame);
+            }, []);
+            if (pos.x === 0) return null;
+            return (
+                <div className="fixed pointer-events-none z-[1000] rounded-full transition-transform duration-200"
+                     style={{
+                        left: pos.x, top: pos.y,
+                        width: 24, height: 24,
+                        background: pos.grabbing ? '#ffcc33' : 'white',
+                        transform: `translate(-50%, -50%) scale(${pos.grabbing ? 0.8 : 1.2})`,
+                        boxShadow: `0 0 20px ${pos.grabbing ? '#ffcc33' : 'white'}`,
+                        opacity: 0.8
+                     }} />
+            );
+        }
+
+        function GeometricSymbol() {
+            return (
+                <svg viewBox="0 0 100 100" className="w-full h-full stroke-current fill-none" strokeWidth="1">
+                    <circle cx="50" cy="50" r="45" />
+                    <path d="M50 5 L90 80 L10 80 Z" />
+                    <path d="M50 95 L10 20 L90 20 Z" />
+                </svg>
+            );
+        }
+
+        function Starfield() {
+            return (
+                <div className="absolute inset-0">
+                    {Array.from({ length: 50 }).map((_, i) => (
+                        <div key={i} className="absolute bg-white rounded-full animate-pulse"
+                             style={{
+                                top: `${Math.random()*100}%`, left: `${Math.random()*100}%`,
+                                width: Math.random()*2, height: Math.random()*2,
+                                opacity: Math.random()*0.5, animationDuration: `${2+Math.random()*3}s`
+                             }} />
+                    ))}
                 </div>
             );
         }
