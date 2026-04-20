@@ -1,450 +1,210 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>星语占卜 - 命运之指引</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;600&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>星语占卜 - 命运之指引</title>
 
-        :root {
-            --gold: #ffcc33;
-            --gold-glow: rgba(255, 204, 51, 0.5);
-            --bg-dark: #030308;
-            --card-w: 200px;
-            --card-h: 340px;
-        }
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
-        body {
-            margin: 0;
-            background: var(--bg-dark);
-            color: #f0e6cc;
-            font-family: 'Noto Serif SC', serif;
-            overflow: hidden;
-            user-select: none;
-        }
-
-        #star-canvas {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            background: radial-gradient(circle at center, #0e061a 0%, #030308 100%);
-        }
-
-        .stage {
-            position: absolute;
-            inset: 0;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-        }
-        .stage.active { display: flex; }
-
-        .carousel-container {
-            position: relative;
-            width: 100%;
-            height: 600px;
-            perspective: 2000px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transform-style: preserve-3d;
-        }
-        #cards-track {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .tarot-card {
-            position: absolute;
-            width: var(--card-w);
-            height: var(--card-h);
-            border-radius: 16px;
-            transform-style: preserve-3d;
-            transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s, box-shadow 0.4s;
-            will-change: transform;
-            cursor: none;
-        }
-
-        .card-inner {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            transform-style: preserve-3d;
-            /* 彻底移除过渡动画，让其瞬间切换到正面 */
-            transition: none;
-        }
-
-        /* 翻转状态：旋转内部容器 */
-        .is-flipped .card-inner {
-            transform: rotateY(180deg);
-        }
-
-        .card-face {
-            position: absolute;
-            inset: 0;
-            backface-visibility: hidden;
-            -webkit-backface-visibility: hidden;
-            border-radius: 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border: 2px solid rgba(255, 204, 51, 0.3);
-            overflow: hidden;
-        }
-
-        .card-back {
-            background: radial-gradient(circle at center, #1b1b3a 0%, #080815 100%);
-            z-index: 2;
-        }
-        .card-back svg {
-            width: 60%;
-            stroke: var(--gold);
-            fill: none;
-            opacity: 0.8;
-        }
-
-        .card-front {
-            background: #ffffff;
-            color: #000000;
-            transform: rotateY(180deg);
-            padding: 24px;
-            z-index: 1;
-        }
-        
-        .card-front .emoji {
-            font-size: 5rem;
-            margin-bottom: 20px;
-        }
-
-        .card-front .card-name {
-            font-size: 1.5rem;
-            font-weight: bold;
-            letter-spacing: 0.2em;
-            margin-top: 10px;
-        }
-
-        .card-front .divider {
-            width: 40px;
-            height: 2px;
-            background: #e5e7eb;
-            margin: 15px 0;
-        }
-
-        /* 抓取成功的消散动画 */
-        .card-dissipating {
-            transition: transform 1.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 1s ease, filter 1s ease !important;
-            transform: translate3d(0, -120vh, 800px) rotateY(0deg) scale(0.1) !important;
-            opacity: 0 !important;
-            filter: blur(20px) brightness(3) !important;
-            z-index: 9999 !important;
-        }
-
-        .gold-btn {
-            border: 1px solid var(--gold);
-            color: var(--gold);
-            background: rgba(255, 204, 51, 0.05);
-            transition: all 0.3s;
-            letter-spacing: 0.5em;
-        }
-        .gold-btn:hover:not(:disabled) {
-            background: var(--gold);
-            color: #000;
-            box-shadow: 0 0 30px var(--gold-glow);
-        }
-
-        #custom-cursor {
-            position: fixed;
-            width: 32px; height: 32px;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-            z-index: 10000;
-            pointer-events: none;
-            transform: translate(-50%, -50%);
-            transition: transform 0.2s, background 0.2s, border-color 0.2s;
-        }
-        #custom-cursor.grabbing {
-            transform: translate(-50%, -50%) scale(0.6);
-            background: var(--gold);
-            border-color: white;
-            box-shadow: 0 0 30px var(--gold);
-        }
-    </style>
+<style>
+body{
+    margin:0;
+    background:#030308;
+    color:#f0e6cc;
+    font-family:serif;
+    overflow:hidden;
+}
+.stage{
+    position:absolute;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+}
+.stage.active{display:flex;}
+.tarot-card{
+    position:absolute;
+    width:200px;height:320px;
+    border-radius:12px;
+    background:#111;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-size:24px;
+}
+.card-front{display:none;}
+.is-flipped .card-front{display:block;}
+.card-dissipating{
+    opacity:0;
+    transform:translateY(-200px) scale(0.2)!important;
+    transition:1s;
+}
+</style>
 </head>
+
 <body>
 
-    <canvas id="star-canvas"></canvas>
-    <div id="custom-cursor"></div>
+<!-- 输入 -->
+<div id="stage-input" class="stage active">
+    <input id="q-input" placeholder="输入问题..." style="padding:10px;font-size:20px">
+    <button onclick="onStart()">开始占卜</button>
+</div>
 
-    <div id="stage-input" class="stage active">
-        <div class="mb-8 w-24 h-24 text-[#ffcc33]">
-            <svg viewBox="0 0 100 100" class="stroke-current fill-none">
-                <circle cx="50" cy="50" r="46" stroke-width="0.5" />
-                <path d="M50 8 L90 75 L10 75 Z" stroke-width="1" />
-                <path d="M50 92 L10 25 L90 25 Z" stroke-width="1" />
-            </svg>
-        </div>
-        <h1 class="text-5xl font-bold tracking-[0.4em] mb-4 text-[#ffcc33]">星语占卜</h1>
-        <p class="text-sm opacity-50 mb-12 italic tracking-widest">“书写你内心的困惑...”</p>
-        <div class="w-full max-w-lg px-6">
-            <input type="text" id="q-input" class="w-full bg-transparent border-b-2 border-[#ffcc33]/30 p-4 text-2xl text-center focus:outline-none focus:border-[#ffcc33] transition-all" placeholder="例如：我未来的机遇在哪里？">
-            <button onclick="onStart()" class="mt-12 block mx-auto px-12 py-4 rounded-full gold-btn font-bold">
-                注入星能
-            </button>
-        </div>
-    </div>
+<!-- 抽卡 -->
+<div id="stage-draw" class="stage">
+    <div id="cards-track"></div>
+</div>
 
-    <div id="stage-draw" class="stage">
-        <div class="absolute top-10 text-center z-20">
-            <h2 id="display-q" class="text-xl md:text-2xl tracking-[0.2em] font-bold text-[#ffcc33]/80 mb-2"></h2>
-            <div id="status-tag" class="inline-block px-6 py-1 bg-black/60 border border-[#ffcc33]/20 rounded-full text-[10px] text-[#ffcc33] tracking-widest uppercase">
-                感应星轨...
-            </div>
-        </div>
-        
-        <div class="carousel-container">
-            <div id="cards-track"></div>
-        </div>
+<!-- 结果 -->
+<div id="stage-report" class="stage">
+    <div id="report-list"></div>
+    <button onclick="location.reload()">重新开始</button>
+</div>
 
-        <div id="progress-dots" class="flex gap-8 mb-10 z-20">
-            <div class="w-3 h-3 rounded-full border-2 border-[#ffcc33]/30 transition-all duration-500"></div>
-            <div class="w-3 h-3 rounded-full border-2 border-[#ffcc33]/30 transition-all duration-500"></div>
-            <div class="w-3 h-3 rounded-full border-2 border-[#ffcc33]/30 transition-all duration-500"></div>
-        </div>
-
-        <div class="absolute bottom-6 right-6 w-36 h-24 border border-[#ffcc33]/20 rounded-lg overflow-hidden bg-black shadow-2xl z-20">
-            <video id="v-preview" class="w-full h-full object-cover scale-x-[-1]" playsinline muted></video>
-        </div>
-    </div>
-
-    <div id="stage-report" class="stage overflow-y-auto bg-black p-10">
-        <div class="max-w-4xl mx-auto py-20">
-            <h2 class="text-5xl font-bold text-[#ffcc33] text-center mb-24 tracking-[0.3em]">命运解析</h2>
-            <div id="report-list" class="space-y-32"></div>
-            <div class="text-center mt-32">
-                <button onclick="location.reload()" class="px-10 py-4 gold-btn rounded-full">重 塑 虚 空</button>
-            </div>
-        </div>
-    </div>
+<video id="v-preview" style="display:none"></video>
 
 <script>
 const TAROT_DATA = [
-    { name: "愚者", emoji: "🃏", desc: "开启旅程的勇气，不问终点的纯粹。", detail: "现在是放下恐惧、开始新事物的最佳时机。风险中蕴含着巨大的机遇。" },
-    { name: "魔术师", emoji: "🧙", desc: "万事俱备，你拥有改变现实的创造力。", detail: "你已经握有了所有工具。现在需要的是专注和行动。" },
-    { name: "女教皇", emoji: "🌙", desc: "智慧源于静谧，听从内心的直觉。", detail: "答案不在外部，而是在你的内心深处。保持静默，观察本质。" },
-    { name: "皇后", emoji: "🌿", desc: "丰盛的果实正在孕育，母性的慈悲。", detail: "这是一个充满爱与创造力的时期。享受生命的美好，富足感会自然随之而来。" },
-    { name: "皇帝", emoji: "👑", desc: "秩序与权威，理性的决策。", detail: "你需要建立结构和纪律。通过逻辑和权威来掌控局面。" },
-    { name: "力量", emoji: "🦁", desc: "温柔的克制，降伏内心的野兽。", detail: "真正的力量源于内心的韧性。用耐心和宽容去化解冲突。" },
-    { name: "太阳", emoji: "☀️", desc: "纯粹的光明与喜悦，成功的坦途。", detail: "前方是一片坦途。保持乐观积极的态度，所有的阴霾都将被驱散。" },
-    { name: "星辰", emoji: "✨", desc: "黑暗中的希望，灵感的涌现。", detail: "在最黑暗的时刻，希望从未熄灭。这是一个疗愈和寻找灵感的时期。" }
+{ name:"愚者",emoji:"🃏",desc:"新的开始",detail:"勇敢出发" },
+{ name:"魔术师",emoji:"🧙",desc:"创造力",detail:"行动吧" },
+{ name:"女教皇",emoji:"🌙",desc:"直觉",detail:"倾听内心" },
+{ name:"太阳",emoji:"☀️",desc:"成功",detail:"一切顺利" }
 ];
 
-let drawnCards = [];
-let grabbedCardEl = null;
-let isLocking = false;
-let lastActionTime = 0;
+let drawnCards=[];
+let grabbedCardEl=null;
+let isLocking=false;
+let lastTime=0;
 
-const COOLDOWN = 700;
-const TOTAL_CARDS = 40;
-const CARD_GAP = 280;
-const TRACK_W = TOTAL_CARDS * CARD_GAP;
+const COOLDOWN=600;
+const TOTAL=20;
+const GAP=220;
+const WIDTH=TOTAL*GAP;
 
-let scrollOffset = 0;
-let speed = 2.0;
+let offset=0;
+let speed=2;
 
-function canTrigger() {
-    const now = Date.now();
-    if (now - lastActionTime < COOLDOWN) return false;
-    lastActionTime = now;
+function canTrigger(){
+    let now=Date.now();
+    if(now-lastTime<COOLDOWN) return false;
+    lastTime=now;
     return true;
 }
 
-function onStart() {
-    const q = document.getElementById('q-input').value;
-    if(q.trim().length < 1) return;
-
-    document.getElementById('display-q').innerText = q;
-    document.getElementById('stage-input').classList.remove('active');
-    document.getElementById('stage-draw').classList.add('active');
-
+function onStart(){
+    document.getElementById("stage-input").classList.remove("active");
+    document.getElementById("stage-draw").classList.add("active");
     createTrack();
     initAI();
-    renderLoop();
+    loop();
 }
 
-function createTrack() {
-    const track = document.getElementById('cards-track');
-    track.innerHTML = '';
-
-    for(let i=0; i<TOTAL_CARDS; i++) {
-        const data = TAROT_DATA[i % TAROT_DATA.length];
-        const card = document.createElement('div');
-        card.className = 'tarot-card';
-        card.dataset.id = i;
-
-        card.innerHTML = `
-            <div class="card-inner">
-                <div class="card-face card-back"></div>
-                <div class="card-face card-front">
-                    <div class="emoji">${data.emoji}</div>
-                    <div class="divider"></div>
-                    <div class="card-name">${data.name}</div>
-                </div>
-            </div>
-        `;
-
-        track.appendChild(card);
+function createTrack(){
+    let track=document.getElementById("cards-track");
+    track.innerHTML="";
+    for(let i=0;i<TOTAL;i++){
+        let d=TAROT_DATA[i%TAROT_DATA.length];
+        let div=document.createElement("div");
+        div.className="tarot-card";
+        div.dataset.id=i;
+        div.innerHTML=`<div>${d.emoji}</div>`;
+        track.appendChild(div);
     }
 }
 
-function renderLoop() {
-    if(!grabbedCardEl) {
-        scrollOffset -= speed;
-        if(Math.abs(scrollOffset) >= TRACK_W) scrollOffset = 0;
-        if(speed > 2.0) speed *= 0.985;
+function loop(){
+    if(!grabbedCardEl){
+        offset-=speed;
+        if(Math.abs(offset)>=WIDTH) offset=0;
     }
 
-    const cards = document.querySelectorAll('.tarot-card:not(.card-dissipating)');
-    cards.forEach((el, i) => {
-        if(el === grabbedCardEl) return;
-
-        let x = (i * CARD_GAP + scrollOffset);
-        x = ((x + TRACK_W/2) % TRACK_W + TRACK_W) % TRACK_W - TRACK_W/2;
-
-        const z = -Math.abs(x) * 0.8 - 200;
-        const rotY = (x / 800) * -35;
-
-        el.style.transform = `translate3d(${x}px,0,${z}px) rotateY(${rotY}deg)`;
+    document.querySelectorAll(".tarot-card:not(.card-dissipating)").forEach((el,i)=>{
+        if(el===grabbedCardEl) return;
+        let x=(i*GAP+offset)%WIDTH;
+        el.style.transform=`translateX(${x}px)`;
     });
 
-    requestAnimationFrame(renderLoop);
+    requestAnimationFrame(loop);
 }
 
-function handleGrab() {
-    if(grabbedCardEl || isLocking || drawnCards.length >= 3) return;
+function handleGrab(){
+    if(grabbedCardEl||isLocking||drawnCards.length>=3) return;
 
-    let target = null;
-    let minDist = Infinity;
+    let target=[...document.querySelectorAll(".tarot-card")][0];
+    grabbedCardEl=target;
+    grabbedCardEl.style.transform="translateX(0) scale(1.2)";
+}
 
-    document.querySelectorAll('.tarot-card:not(.card-dissipating)').forEach(el => {
-        const matrix = new WebKitCSSMatrix(window.getComputedStyle(el).transform);
-        const currentX = matrix.m41;
-        if(Math.abs(currentX) < minDist) {
-            minDist = Math.abs(currentX);
-            target = el;
+function handleRelease(){
+    if(!grabbedCardEl||isLocking||drawnCards.length>=3) return;
+
+    isLocking=true;
+
+    let id=parseInt(grabbedCardEl.dataset.id);
+    drawnCards.push(TAROT_DATA[id%TAROT_DATA.length]);
+
+    grabbedCardEl.classList.add("card-dissipating");
+
+    setTimeout(()=>{
+        grabbedCardEl.remove();
+        grabbedCardEl=null;
+        isLocking=false;
+
+        if(drawnCards.length===3){
+            showReport();
         }
-    });
-
-    if(target) {
-        grabbedCardEl = target;
-        grabbedCardEl.classList.add('is-flipped');
-        grabbedCardEl.style.transform = `translate3d(0,0,600px) scale(1.1)`;
-    }
+    },800);
 }
 
-function handleRelease() {
-    if(!grabbedCardEl || isLocking || drawnCards.length >= 3) return;
+function showReport(){
+    document.getElementById("stage-draw").classList.remove("active");
+    document.getElementById("stage-report").classList.add("active");
 
-    isLocking = true;
+    let list=document.getElementById("report-list");
+    list.innerHTML="";
 
-    const id = parseInt(grabbedCardEl.dataset.id);
-    drawnCards.push(TAROT_DATA[id % TAROT_DATA.length]);
-
-    grabbedCardEl.classList.add('card-dissipating');
-
-    setTimeout(() => {
-        grabbedCardEl?.remove();
-        grabbedCardEl = null;
-        isLocking = false;
-        speed = 20;
-
-        if(drawnCards.length === 3) {
-            setTimeout(showFinalReport, 600);
-        }
-    }, 1000);
-}
-
-function showFinalReport() {
-    document.getElementById('stage-draw').classList.remove('active');
-    document.getElementById('stage-report').classList.add('active');
-
-    const list = document.getElementById('report-list');
-    list.innerHTML = '';
-
-    drawnCards.forEach((card, i) => {
-        const stage = i === 0 ? "一、现状" : i === 1 ? "二、挑战" : "三、未来";
-
-        const div = document.createElement('div');
-        div.className = "opacity-0 translate-y-10 transition-all duration-1000";
-        div.style.transitionDelay = `${i*300}ms`;
-
-        div.innerHTML = `
-            <div class="flex flex-col md:flex-row gap-12 items-center">
-                <div class="w-48 h-80 bg-white rounded-2xl flex flex-col items-center justify-center p-6 text-black">
-                    <div class="text-7xl">${card.emoji}</div>
-                    <div class="text-xl font-bold mt-4">${card.name}</div>
-                </div>
-                <div>
-                    <div class="text-yellow-400 mb-2">${stage}</div>
-                    <h3 class="text-3xl mb-4">${card.name}</h3>
-                    <p class="italic mb-4">“${card.desc}”</p>
-                    <p>${card.detail}</p>
-                </div>
-            </div>
+    drawnCards.forEach((c,i)=>{
+        let div=document.createElement("div");
+        div.style.margin="20px";
+        div.innerHTML=`
+            <h2>${c.emoji} ${c.name}</h2>
+            <p>${c.desc}</p>
+            <p>${c.detail}</p>
         `;
-
         list.appendChild(div);
     });
-
-    setTimeout(() => {
-        document.querySelectorAll('.opacity-0').forEach(el => {
-            el.classList.remove('opacity-0', 'translate-y-10');
-        });
-    }, 100);
 }
 
-function initAI() {
-    const video = document.getElementById('v-preview');
-    const cursor = document.getElementById('custom-cursor');
+function initAI(){
+    const video=document.getElementById("v-preview");
 
-    const hands = new Hands({
-        locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    const hands=new Hands({
+        locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
     });
 
     hands.setOptions({
-        maxNumHands: 1,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.7
+        maxNumHands:1,
+        minDetectionConfidence:0.7
     });
 
-    hands.onResults((res) => {
-        if(res.multiHandLandmarks?.length) {
-            const h = res.multiHandLandmarks[0];
-
-            const isFist = [8,12,16,20].every(i => h[i].y > h[i-2].y);
+    hands.onResults((res)=>{
+        if(res.multiHandLandmarks?.length){
+            const h=res.multiHandLandmarks[0];
+            const isFist=[8,12,16,20].every(i=>h[i].y>h[i-2].y);
 
             if(isFist && canTrigger()) handleGrab();
             else if(!isFist && canTrigger()) handleRelease();
         }
     });
 
-    new Camera(video, {
-        onFrame: async () => {
-            await hands.send({image: video});
-        },
-        width: 640,
-        height: 480
+    new Camera(video,{
+        onFrame:async()=>{await hands.send({image:video})},
+        width:640,height:480
     }).start();
 }
 </script>
