@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>星语占卜 - 命运之指引</title>
+    <title>心乐之予 - 命运指引</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -202,7 +202,6 @@
             50% { opacity: 1; transform: scale(1.05); }
         }
 
-        /* 报告页修饰 */
         .ai-insight-box {
             background: rgba(255, 204, 51, 0.03);
             border: 1px solid rgba(255, 204, 51, 0.1);
@@ -225,7 +224,6 @@
     <canvas id="star-canvas"></canvas>
     <div id="custom-cursor"></div>
 
-    <!-- 解密提示覆盖层 -->
     <div id="decoding-overlay">
         <div class="mb-8 w-20 h-20">
             <svg viewBox="0 0 100 100" class="animate-spin" style="animation-duration: 3s">
@@ -279,18 +277,15 @@
 
     <div id="stage-report" class="stage overflow-y-auto bg-black p-6 md:p-10">
         <div class="w-full max-w-6xl mx-auto py-10 md:py-20 flex flex-col items-center">
-            <h2 class="text-3xl md:text-5xl font-bold text-[#ffcc33] text-center mb-12 md:mb-24 tracking-[0.3em]">命运解析报告</h2>
+            <h2 class="text-3xl md:text-5xl font-bold text-[#ffcc33] text-center mb-12 md:mb-16 tracking-[0.3em]">命运解析报告</h2>
             
-            <!-- 1. 先显示三张卡牌 -->
-            <div id="card-results-display" class="flex flex-wrap justify-center gap-8 md:gap-16 mb-16 w-full"></div>
+            <div id="card-results-display" class="flex flex-wrap justify-center gap-4 md:gap-10 mb-12 w-full"></div>
 
-            <!-- 2. 点击展开解析按钮 -->
             <div id="unlock-ai-btn-area" class="text-center mb-16 hidden transition-opacity duration-500 opacity-0">
                 <div class="text-[#ffcc33]/60 text-xs mb-4 tracking-[0.2em]">星象已成，点击窥视天机</div>
                 <button onclick="revealAIInsight()" class="gold-btn px-8 py-3 rounded-full text-sm animate-bounce">开启命运解析</button>
             </div>
 
-            <!-- 3. 文字解析区域 -->
             <div id="ai-summary-box" class="ai-insight-box p-8 md:p-12 rounded-3xl w-full max-w-4xl hidden opacity-0 transition-all duration-1000 transform translate-y-8">
                 <h3 class="text-xl text-[#ffcc33] mb-6 font-bold tracking-widest flex items-center justify-center gap-4">
                     <span class="w-8 h-[1px] bg-[#ffcc33]/50"></span>
@@ -311,7 +306,6 @@
         const modelName = "MiniMax-M2.7";
         
         const TAROT_DATA = [
-            // 大阿卡纳
             { name: "愚者", emoji: "🃏", desc: "开启旅程的勇气，纯粹的自由。", detail: "现在是放下恐惧、开始新事物的最佳时机。风险中蕴含着巨大的机遇。" },
             { name: "魔术师", emoji: "🧙", desc: "万事俱备，拥有改变现实的创造力。", detail: "你已经握有了所有工具。现在需要的是专注和行动。" },
             { name: "女教皇", emoji: "🌙", desc: "智慧源于静谧，听从直觉。", detail: "答案不在外部，而是在你的内心深处。保持静默，观察本质。" },
@@ -334,7 +328,6 @@
             { name: "太阳", emoji: "☀️", desc: "纯粹的光明，成功的坦途。", detail: "前方是一片坦途。保持乐观积极的态度，享受喜悦。" },
             { name: "审判", emoji: "🎺", desc: "灵魂的觉醒，过去的清算。", detail: "听从召唤。审视过去，原谅并迈向更高层次的自我。" },
             { name: "世界", emoji: "🌍", desc: "完美的闭环，阶段性的圆满。", detail: "你已经达成了一个重要的里程碑。享受这份完整与和谐。" },
-            // 权杖组
             { name: "权杖一", emoji: "🪄", desc: "行动的火种，新的机遇。", detail: "一个充满活力的开端，行动力是现在的关键。" },
             { name: "权杖二", emoji: "🔭", desc: "远方的展望，筹备扩展。", detail: "不要局限于眼前。制定长远计划，世界在你手中。" },
             { name: "权杖三", emoji: "🚢", desc: "初步的成果，等待回馈。", detail: "你的努力已开始见效，耐心等待更好的时机。" },
@@ -345,55 +338,12 @@
             { name: "权杖八", emoji: "🏹", desc: "迅猛的发展，消息的传递。", detail: "事情进展得飞快，准备好迎接这一波速度。" },
             { name: "权杖九", emoji: "🛡️", desc: "最后的防线，经验的积累。", detail: "虽然疲惫，但胜利近在咫尺。守住最后一关。" },
             { name: "权杖十", emoji: "🪵", desc: "沉重的负担，过度的承诺。", detail: "你背运了太多。学会分担或放下不必要的压力。" },
-            { name: "权杖侍从", emoji: "🚶", desc: "活力的信使，求知的热情。", detail: "一个充满好奇心的年轻人或一个令人兴奋的新消息。" },
-            { name: "权杖骑士", emoji: "🐎", desc: "冲动的开拓者，勇敢的追求。", detail: "带着热情前进，但要小心过度鲁莽。" },
-            { name: "权杖皇后", emoji: "🌻", desc: "热情的领导者，坚定的魅力。", detail: "展现你的自信和吸引力，你拥有掌控全场的力量。" },
-            { name: "权杖国王", emoji: "🦁", desc: "远见的统领，事业的巅峰。", detail: "以你的意志和经验引领他人，你是天生的开拓者。" },
-            // 圣杯组
             { name: "圣杯一", emoji: "🥛", desc: "情感的涌现，精神的满足。", detail: "一段新恋情的开始或内心平静的喜悦。" },
             { name: "圣杯二", emoji: "🥂", desc: "平等的联结，默契的合作。", detail: "两个灵魂的和谐碰撞，建立在尊重基础上的关系。" },
             { name: "圣杯三", emoji: "👯", desc: "共享的喜悦，社交的欢乐。", detail: "与朋友庆祝，感受团体的温暖和支持。" },
-            { name: "圣杯四", emoji: "🍹", desc: "情感的倦怠，错过的契机。", detail: "不要沉溺于不满，抬头看看身边被忽略的机会。" },
-            { name: "圣杯五", emoji: "🥀", desc: "哀伤的损失，留存的希望。", detail: "悲伤有时难以避免，但请记住还有三个杯子是满的。" },
-            { name: "圣杯六", emoji: "🧒", desc: "童年的纯真，美好的回忆。", detail: "旧友归来或重温过去的快乐，找回最初的纯真。" },
-            { name: "圣杯七", emoji: "☁️", desc: "纷乱的选择，梦幻的泡影。", detail: "面对诱惑要保持清醒。幻想虽美，务实才重要。" },
-            { name: "圣杯八", emoji: "🚶‍♂️", desc: "决绝的追寻，舍弃平庸。", detail: "为了追求更高的精神境界，你选择离开现状。" },
-            { name: "圣杯九", emoji: "🍲", desc: "愿望的达成，感官的享受。", detail: "这是一个知足常乐的时刻，你的心愿正逐渐实现。" },
-            { name: "圣杯十", emoji: "🌈", desc: "家庭的幸福，情感的圆满。", detail: "最极致的和谐状态，与所爱之人共享天伦。" },
-            { name: "圣杯侍从", emoji: "🐚", desc: "感性的表达，直觉的萌芽。", detail: "一位温柔的讯息传递者，或是你感性面的觉醒。" },
-            { name: "圣杯骑士", emoji: "🦄", desc: "浪漫的追求，梦幻的旅程。", detail: "追随你的心，一段充满诗意的邀请正在路上。" },
-            { name: "圣杯皇后", emoji: "🧜‍♀️", desc: "直觉的容器，温柔的共情。", detail: "你的同情心和直觉正处于巅峰，多听听心底的声音。" },
-            { name: "圣杯国王", emoji: "🐋", desc: "情感的掌控，成熟的慈悲。", detail: "在风暴中保持冷静。你具备调和情绪的导师素质。" },
-            // 宝剑组
             { name: "宝剑一", emoji: "🗡️", desc: "理智的开端，清晰的真相。", detail: "斩断混乱，用清晰的思维看透本质，决断力极强。" },
-            { name: "宝剑二", emoji: "⚔️", desc: "僵局的选择，内心的闭塞。", detail: "不要再逃避决定，盲目地保护自己只会带来困境。" },
             { name: "宝剑三", emoji: "💔", desc: "心碎的痛苦，必要的洗礼。", detail: "真相有时是残酷的，但痛苦是成长和疗愈的必经之路。" },
-            { name: "宝剑四", emoji: "🛌", desc: "静默的修整，思绪的撤退。", detail: "你需要休息。在静思中恢复精神，不要急于决策。" },
-            { name: "宝剑五", emoji: "🤺", desc: "虚假的胜利，惨痛的代价。", detail: "虽然赢了争论，但失去了信任。反思你的手段。" },
-            { name: "宝剑六", emoji: "🛶", desc: "平稳的渡过，逐渐远离伤害。", detail: "最艰难的时刻已过去，你正在前往更宁静的彼岸。" },
-            { name: "宝剑七", emoji: "🏃", desc: "秘密的行事，机智的周旋。", detail: "策略优于蛮力，但要注意诚信，避免自作聪明。" },
-            { name: "宝剑八", emoji: "⛓️", desc: "心理的束缚，受困的幻觉。", detail: "眼罩是你自己戴上的。只要你愿意，随时可以解脱。" },
-            { name: "宝剑九", emoji: "🙀", desc: "深夜的焦虑，梦魇的折磨。", detail: "担忧往往比现实更可怕。直面恐惧，阴霾自散。" },
-            { name: "宝剑十", emoji: "🪦", desc: "彻底的低谷，再无下降空间。", detail: "事情已到极点。接下来的每一步都是向上的。" },
-            { name: "宝剑侍从", emoji: "🧐", desc: "敏捷的观察，求知的警戒。", detail: "保持警惕，多搜集情报，真理隐藏在细节中。" },
-            { name: "宝剑骑士", emoji: "🌩️", desc: "迅猛的决断，理性的突围。", detail: "用逻辑和速度横扫障碍，但要小心伤及无辜。" },
-            { name: "宝剑皇后", emoji: "🦉", desc: "理智的独立，锐利的洞察。", detail: "保持客观。现在不是感情用事的时候，用头脑说话。" },
-            { name: "宝剑国王", emoji: "🦅", desc: "法则的守护，智慧的审判。", detail: "你掌握着真理。用客观的公正来引领你的决策。" },
-            // 星币组
-            { name: "星币一", emoji: "🪙", desc: "物质的开端，财富的种子。", detail: "一个实实在在的机会，好好培育它将带来丰厚回报。" },
-            { name: "星币二", emoji: "🤹", desc: "动态的平衡，灵活的调度。", detail: "生活在多项任务中切换，保持幽默感和灵活性。" },
-            { name: "星币三", emoji: "🧱", desc: "专业的协作，卓越的技艺。", detail: "你的才华正受到认可，团队合作是成功的关键。" },
-            { name: "星币四", emoji: "🔒", desc: "保守的持有，防御的心态。", detail: "过度紧握财富或安全感会让你变得吝啬和固执。" },
-            { name: "星币五", emoji: "❄️", desc: "困厄的挑战，寻求庇护。", detail: "不要独自在风雪中游荡。寻求支持，温暖就在不远处。" },
-            { name: "星币六", emoji: "🤝", desc: "慷慨的施与，公平的分配。", detail: "你拥有盈余。通过分享和乐善好施来维持能量平衡。" },
-            { name: "星币七", emoji: "🍇", desc: "耐心的评估，长期的积累。", detail: "暂停脚步，审视你的收成。深耕细作终会有果。" },
-            { name: "星币八", emoji: "🛠️", desc: "工匠的精神，专注的修行。", detail: "潜心钻研你的技能，精益求精是通向大师的唯一途径。" },
-            { name: "星币九", emoji: "🦅", desc: "独立的富足，优雅的享受。", detail: "你赢得了自由和安逸。享受你自己创造出的完美花园。" },
-            { name: "星币十", emoji: "🏰", desc: "传承的稳固，家族的基石。", detail: "不仅是眼前的成功，更是可以流传后世的稳定根基。" },
-            { name: "星币侍从", emoji: "🌱", desc: "踏实的学子，财富的幼苗。", detail: "一个务实的新想法或一份关于财务、学业的好消息。" },
-            { name: "星币骑士", emoji: "🐂", desc: "勤勉的耕耘，稳健的推进。", detail: "慢即是快。通过坚持不懈的日常努力达成目标。" },
-            { name: "星币皇后", emoji: "🧺", desc: "慷慨的哺育，务实的慈悲。", detail: "打理好你的现实生活，给身边的人带来温暖和丰盛。" },
-            { name: "星币国王", emoji: "🏛️", desc: "物质的领主，成功的巅峰。", detail: "你已达到事业的顶峰。用你的慷慨和远见来保护你的领土。" }
+            { name: "星币一", emoji: "🪙", desc: "物质的开端，财富的种子。", detail: "一个实实在在的机会，好好培育它将带来丰厚回报。" }
         ];
 
         let userQuestion = "";
@@ -437,29 +387,6 @@
             renderLoop();
         }
 
-        async function callGemini(prompt) {
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: { parts: [{ text: "你是一位精通塔罗占卜的占星大师。你的语气优雅、神秘、充满智慧且富有启发性。请根据用户的问题和抽到的三张牌（现状、挑战、未来）进行整合解析，字数约200-300字。不要使用Markdown格式标题，只返回纯文本。" }] }
-            };
-
-            for (let i = 0; i < 5; i++) {
-                try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    const result = await response.json();
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "宇宙的讯息似乎暂时被迷雾遮挡，请凭直觉解读卡牌。";
-                } catch (e) {
-                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
-                }
-            }
-            return "链接星空的路径已断开，请通过心之眼自行解读。";
-        }
-
         function createTrack() {
             const track = document.getElementById('cards-track');
             for(let i=0; i<TOTAL_CARDS; i++) {
@@ -501,7 +428,6 @@
                 const rotY = (x / 800) * -35;
 
                 el.style.transform = `translate3d(${x}px, 0, ${z}px) rotateY(${rotY}deg)`;
-                el.style.opacity = "1"; 
                 
                 const inner = el.querySelector('.card-face');
                 if(Math.abs(x) < 100) {
@@ -548,9 +474,7 @@
                 dots[i].style.borderColor = "#ffcc33";
             });
 
-            if(grabbedCardEl) {
-                grabbedCardEl.classList.add('card-dissipating');
-            }
+            grabbedCardEl.classList.add('card-dissipating');
             
             setTimeout(() => {
                 if(grabbedCardEl) {
@@ -571,22 +495,16 @@
             const overlay = document.getElementById('decoding-overlay');
             const statusText = document.getElementById('decode-status');
             overlay.style.display = 'flex';
-            
             statusText.innerText = "正在链接宇宙...";
             
-            // 构建 Prompt
             const prompt = `用户的问题是：“${userQuestion}”。
             抽到的三张牌如下：
             1. 现状：${drawnCards[0].name} (${drawnCards[0].desc})
             2. 挑战：${drawnCards[1].name} (${drawnCards[1].desc})
             3. 未来：${drawnCards[2].name} (${drawnCards[2].desc})
-            
-            请结合卡牌含义，对用户的问题进行深度解答和建议。`;
+            请结合卡牌含义，对用户的问题进行深度解答和建议。请直接输出占卜建议文本，不要输出任何关于思考过程的内容。`;
 
-            // 异步调用 API
             const aiInsightPromise = callMinimax(prompt);
-            
-            // 为了仪式感，至少等待2.5秒
             const [aiResult] = await Promise.all([
                 aiInsightPromise,
                 new Promise(resolve => setTimeout(resolve, 2500))
@@ -599,49 +517,43 @@
         function showFinalReport(aiContent) {
             document.getElementById('stage-draw').classList.remove('active');
             document.getElementById('stage-report').classList.add('active');
-            
-            // 保存 AI 文本备用
             document.getElementById('ai-text-content').innerText = aiContent;
 
             const list = document.getElementById('card-results-display');
             list.innerHTML = ""; 
 
             drawnCards.forEach((card, i) => {
-                const stageName = i === 0 ? "一、现状" : i === 1 ? "二、挑战" : "三、未来";
+                const stageName = i === 0 ? "现状" : i === 1 ? "挑战" : "未来";
+                // 卡牌大小缩小为 1/3 (w-14 h-24 左右)
                 list.innerHTML += `
-                    <div class="flex flex-col items-center opacity-0 translate-y-10 transition-all duration-1000" style="transition-delay: ${i*400}ms">
-                        <div class="w-40 h-64 md:w-48 md:h-80 bg-white rounded-2xl flex flex-col items-center justify-center p-6 text-black shadow-[0_20px_50px_rgba(255,204,51,0.2)] mb-6 transform hover:scale-105 transition-transform duration-500">
-                            <div class="text-6xl md:text-7xl mb-4">${card.emoji}</div>
-                            <div class="w-12 h-0.5 bg-gray-200 mb-4"></div>
-                            <div class="text-lg md:text-xl font-bold tracking-widest">${card.name}</div>
+                    <div class="flex flex-col items-center opacity-0 translate-y-6 transition-all duration-1000" style="transition-delay: ${i*400}ms">
+                        <div class="w-14 h-24 md:w-16 md:h-28 bg-white rounded-lg flex flex-col items-center justify-center p-2 text-black shadow-lg mb-3 transform hover:scale-110 transition-transform duration-500">
+                            <div class="text-2xl md:text-3xl mb-1">${card.emoji}</div>
+                            <div class="w-4 h-0.5 bg-gray-200 mb-1"></div>
+                            <div class="text-[8px] md:text-[10px] font-bold text-center">${card.name}</div>
                         </div>
-                        <div class="text-center px-4 w-full max-w-[200px]">
-                            <div class="text-[#ffcc33] text-xs tracking-[0.3em] mb-3 font-bold uppercase">${stageName}</div>
-                            <p class="text-[#f0e6cc]/80 text-sm italic leading-relaxed">“${card.desc}”</p>
+                        <div class="text-center px-1 w-full max-w-[100px]">
+                            <div class="text-[#ffcc33] text-[8px] tracking-[0.1em] mb-1 font-bold uppercase">${stageName}</div>
+                            <p class="text-[#f0e6cc]/80 text-[10px] italic leading-tight">“${card.desc}”</p>
                         </div>
                     </div>
                 `;
             });
             
-            // 触发卡牌入场动画
             setTimeout(() => {
-                list.querySelectorAll('.opacity-0').forEach(el => el.classList.remove('opacity-0', 'translate-y-10'));
+                list.querySelectorAll('.opacity-0').forEach(el => el.classList.remove('opacity-0', 'translate-y-6'));
             }, 100);
 
-            // 卡牌显示完毕后，出现"开启文字解析"按钮
             setTimeout(() => {
                 const btnArea = document.getElementById('unlock-ai-btn-area');
                 btnArea.classList.remove('hidden');
-                setTimeout(() => {
-                    btnArea.classList.remove('opacity-0');
-                }, 50);
-            }, drawnCards.length * 400 + 800);
+                setTimeout(() => btnArea.classList.remove('opacity-0'), 50);
+            }, 1600);
         }
 
         function revealAIInsight() {
             const btnArea = document.getElementById('unlock-ai-btn-area');
             const box = document.getElementById('ai-summary-box');
-
             btnArea.style.opacity = '0';
             setTimeout(() => {
                 btnArea.classList.add('hidden');
@@ -660,12 +572,9 @@
                 messages: [
                     {
                         role: "system",
-                        content: "你是一位精通塔罗占卜的占星大师。你的语气优雅、神秘、充满智慧且富有启发性。请根据用户的问题和抽到的三张牌（现状、挑战、未来）进行整合解析，字数约200-300字。不要使用Markdown格式标题，只返回纯文本。"
+                        content: "你是一位精通塔罗占卜的占星大师。语气优雅、神秘、有启发性。请根据三张牌进行整合解析，200-300字。严禁输出任何 <thought> 标签内的思考过程或模型分析逻辑，只返回占卜结果文本。"
                     },
-                    {
-                        role: "user",
-                        content: prompt
-                    }
+                    { role: "user", content: prompt }
                 ]
             };
 
